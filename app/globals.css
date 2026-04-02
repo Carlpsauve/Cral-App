@@ -1,0 +1,139 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: 'Playfair Display', serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #12121a; }
+::-webkit-scrollbar-thumb { background: #2a2a40; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3a3a55; }
+
+/* Selection */
+::selection { background: #fbbf2440; color: #fbbf24; }
+
+@layer base {
+  body {
+    background-color: #0a0a0f;
+    color: #e8e8f0;
+  }
+}
+
+@layer components {
+  .glass {
+    background: rgba(26, 26, 38, 0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .glass-gold {
+    background: rgba(251, 191, 36, 0.08);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(251, 191, 36, 0.2);
+  }
+
+  .btn-gold {
+    @apply bg-gold-500 hover:bg-gold-400 text-cral-bg font-body font-medium px-6 py-2.5 rounded-lg transition-all duration-200 text-sm tracking-wide;
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
+  }
+  .btn-gold:hover {
+    box-shadow: 0 0 30px rgba(251, 191, 36, 0.5);
+    transform: translateY(-1px);
+  }
+  .btn-gold:active { transform: translateY(0); }
+
+  .btn-outline {
+    @apply border border-cral-border hover:border-gold-500/50 text-cral-sub hover:text-cral-text px-6 py-2.5 rounded-lg transition-all duration-200 text-sm;
+  }
+
+  .card {
+    @apply rounded-xl p-6;
+    background: #1a1a26;
+    border: 1px solid #2a2a40;
+  }
+
+  .input-field {
+    @apply w-full bg-cral-surface border border-cral-border rounded-lg px-4 py-3 text-cral-text placeholder-cral-muted text-sm transition-all duration-200 outline-none;
+  }
+  .input-field:focus {
+    border-color: #fbbf24;
+    box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.1);
+  }
+
+  .cral-badge {
+    @apply inline-flex items-center gap-1 text-gold-400 font-mono font-medium;
+  }
+
+  .nav-link {
+    @apply flex items-center gap-2 px-3 py-2 rounded-lg text-cral-sub hover:text-cral-text hover:bg-cral-card transition-all duration-150 text-sm;
+  }
+  .nav-link.active {
+    @apply text-gold-400 bg-gold-400/10;
+  }
+}
+
+/* Gold shimmer text */
+.text-shimmer {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24, #fde68a, #fbbf24, #f59e0b);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 3s linear infinite;
+}
+
+/* Slot machine reel spin */
+@keyframes reelSpin {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-300%); }
+}
+
+.reel-spinning {
+  animation: reelSpin 0.1s linear infinite;
+}
+
+/* Glow effects */
+.glow-gold {
+  box-shadow: 0 0 30px rgba(251, 191, 36, 0.2), 0 0 60px rgba(251, 191, 36, 0.1);
+}
+
+.glow-green {
+  box-shadow: 0 0 20px rgba(52, 211, 153, 0.2);
+}
+
+.glow-red {
+  box-shadow: 0 0 20px rgba(248, 113, 113, 0.2);
+}
+
+/* Noise texture overlay */
+.noise::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* Pulse ring */
+@keyframes pulseRing {
+  0% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.pulse-ring::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  border: 2px solid #fbbf24;
+  animation: pulseRing 1.5s ease-out infinite;
+}
