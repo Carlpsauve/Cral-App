@@ -3,16 +3,25 @@ export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase-server'
 import { formatCral, formatDate, cn } from '@/lib/utils'
 import { redirect } from 'next/navigation'
-import { History } from 'lucide-react'
+import { History, Shield } from 'lucide-react'
 
 const TYPE_LABELS: Record<string, string> = {
   bet_win: '🎲 Gajure gagnée',
   bet_loss: '🎲 Gajure perdue',
   daily_win: '🎰 Daily — gain',
   daily_loss: '🎰 Daily — perte',
+  daily_free_win: '🎁 Free bet — gain',
   admin_credit: '⚡ Crédit admin',
   admin_debit: '⚡ Débit admin',
   signup_bonus: '🎁 Bonus inscription',
+  hbc_upgrade: '🦲 Upgrade Homme Blanc Chauve',
+  sport_bet_win: '🏟️ Pari sportif — gagné',
+  sport_bet_loss: '🏟️ Pari sportif — perdu',
+  sport_bet_refund: '🏟️ Pari sportif — remboursé',
+  bet_pending: '⏳ Gajure — mise en attente',
+  bet_refund: '↩️ Gajure — remboursement',
+  blackjack_win: '🃏 Blackjack — gain',
+  blackjack_loss: '🃏 Blackjack — perte',
 }
 
 export default async function HistoriquePage() {
@@ -20,11 +29,26 @@ export default async function HistoriquePage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const { data: transactions } = await supabase
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  const isSuperAdmin = profile?.role === 'super_admin'
+
+  // Super admin voit tout, les autres voient seulement leurs propres transactions
+  let query = supabase
     .from('transactions')
     .select('*, profile:profiles(id, username, avatar_color)')
     .order('created_at', { ascending: false })
-    .limit(100)
+    .limit(200)
+
+  if (!isSuperAdmin) {
+    query = query.eq('user_id', user.id)
+  }
+
+  const { data: transactions } = await query
 
   // Group by date
   const grouped: Record<string, any[]> = {}
@@ -47,7 +71,17 @@ export default async function HistoriquePage() {
           <History className="text-gold-400" size={28} />
           Historique
         </h1>
-        <p className="text-cral-sub text-sm mt-1">Toutes les transactions de tous les joueurs</p>
+        <p className="text-cral-sub text-sm mt-1">
+          {isSuperAdmin
+            ? 'Toutes les transactions de tous les joueurs'
+            : 'Vos transactions personnelles'}
+        </p>
+        {isSuperAdmin && (
+          <div className="flex items-center gap-2 mt-2 text-xs text-purple-400">
+            <Shield size={12} />
+            Vue super admin — toutes les transactions visibles
+          </div>
+        )}
       </div>
 
       {Object.keys(grouped).length === 0 && (
@@ -64,9 +98,9 @@ export default async function HistoriquePage() {
             {txs.map(tx => (
               <div key={tx.id} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium text-cral-text">{TYPE_LABELS[tx.type] ?? tx.type}</span>
-                    {tx.profile && tx.user_id !== user.id && (
+                    {isSuperAdmin && tx.profile && tx.user_id !== user.id && (
                       <span className="text-xs text-cral-muted">· {tx.profile.username}</span>
                     )}
                     {tx.user_id === user.id && (

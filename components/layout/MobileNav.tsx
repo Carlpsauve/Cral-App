@@ -15,7 +15,7 @@ interface MobileNavProps {
 const navItems = [
   { href: '/dashboard', label: 'Home', icon: LayoutDashboard },
   { href: '/gajures', label: 'Gajures', icon: Swords },
-  { href: '/daily', label: 'Daily', icon: Gamepad2 },
+  { href: '/jeux', label: 'Jeux', icon: Gamepad2 },
   { href: '/classement', label: 'Top', icon: Trophy },
   { href: '/historique', label: 'Historique', icon: History },
 ]
@@ -31,7 +31,7 @@ export default function MobileNav({ profile, pendingBets = 0, hasPlayedToday = f
       {navItems.map(({ href, label, icon: Icon }) => {
         const isActive = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
         const showBadge = href === '/gajures' && pendingBets > 0
-        const showDot = href === '/daily' && !hasPlayedToday
+        const showDot = href === '/jeux' && !hasPlayedToday
 
         return (
           <Link

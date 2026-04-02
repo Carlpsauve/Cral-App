@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase-server'
 import { formatCral, getInitials } from '@/lib/utils'
+import Avatar from '@/components/ui/Avatar'
 import { redirect } from 'next/navigation'
 import { Trophy, TrendingUp } from 'lucide-react'
 
@@ -12,7 +13,7 @@ export default async function ClassementPage() {
 
   const { data: players } = await supabase
     .from('profiles')
-    .select('id, username, balance, avatar_color, role')
+    .select('id, username, balance, avatar_color, avatar_svg, role')
     .order('balance', { ascending: false })
 
   const { data: dailyWins } = await supabase
@@ -67,12 +68,7 @@ export default async function ClassementPage() {
                 }}
               >
                 <div className="text-2xl mb-2">{medals[rank]}</div>
-                <div
-                  className="w-12 h-12 rounded-full mx-auto flex items-center justify-center font-bold text-cral-bg mb-2"
-                  style={{ backgroundColor: p.avatar_color, fontSize: '16px' }}
-                >
-                  {getInitials(p.username)}
-                </div>
+                <Avatar username={p.username} avatarColor={p.avatar_color} avatarSvg={p.avatar_svg} size={48} className="mx-auto mb-2" />
                 <div className="text-sm font-medium text-cral-text truncate">{p.username}</div>
                 <div className={`font-mono font-bold mt-1 ${isFirst ? 'text-gold-400 text-lg' : 'text-cral-sub text-sm'}`}>
                   ₡{formatCral(p.balance)}
@@ -103,18 +99,14 @@ export default async function ClassementPage() {
                   {idx < 3 ? medals[idx] : `#${idx + 1}`}
                 </div>
 
-                <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-cral-bg flex-shrink-0"
-                  style={{ backgroundColor: p.avatar_color }}
-                >
-                  {getInitials(p.username)}
-                </div>
+                <Avatar username={p.username} avatarColor={p.avatar_color} avatarSvg={p.avatar_svg} size={36} />
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-cral-text truncate">{p.username}</span>
                     {isMe && <span className="text-xs text-gold-500">vous</span>}
                     {p.role === 'super_admin' && <span className="text-xs text-purple-400">admin</span>}
+                    {p.role === 'homme_blanc_chauve' && <span className="text-xs text-purple-300">🦲</span>}
                   </div>
                   <div className="text-xs text-cral-sub flex items-center gap-3 mt-0.5">
                     <span>🎲 ₡{formatCral(totalBetWin)}</span>

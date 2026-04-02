@@ -103,7 +103,7 @@ export default function AdminPanel({ players: initialPlayers, currentUserId }: {
 
   async function handleToggleRole(player: Profile) {
     if (player.id === currentUserId) return showToast('error', 'Vous ne pouvez pas changer votre propre rôle.')
-    const newRole = player.role === 'super_admin' ? 'plebe' : 'super_admin'
+    const newRole = player.role === 'super_admin' ? 'plebe' : player.role === 'homme_blanc_chauve' ? 'plebe' : 'super_admin'
     setLoading(`role-${player.id}`)
     const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', player.id)
     if (error) { showToast('error', error.message); setLoading(null); return }
@@ -223,9 +223,11 @@ export default function AdminPanel({ players: initialPlayers, currentUserId }: {
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
                         player.role === 'super_admin'
                           ? 'bg-purple-400/10 text-purple-400'
+                          : player.role === 'homme_blanc_chauve'
+                          ? 'bg-purple-400/5 text-purple-300'
                           : 'bg-cral-surface text-cral-muted'
                       }`}>
-                        {player.role === 'super_admin' ? '⚡ Super Admin' : 'Plebe'}
+                        {player.role === 'super_admin' ? '⚡ Super Admin' : player.role === 'homme_blanc_chauve' ? '🦲 Homme Blanc Chauve' : 'Plebe'}
                       </span>
                     </div>
                     <div className="text-sm font-mono text-gold-400 mt-0.5">₡{formatCral(player.balance)}</div>
@@ -303,7 +305,7 @@ export default function AdminPanel({ players: initialPlayers, currentUserId }: {
                       {loading === `role-${player.id}`
                         ? <span className="w-3 h-3 border border-purple-400/40 border-t-purple-400 rounded-full animate-spin" />
                         : <UserCog size={14} />}
-                      {player.role === 'super_admin' ? '→ Plebe' : '→ Admin'}
+                      {player.role === 'super_admin' ? '→ Plebe' : player.role === 'homme_blanc_chauve' ? '→ Plebe' : '→ Admin'}
                     </button>
                   )}
                 </div>

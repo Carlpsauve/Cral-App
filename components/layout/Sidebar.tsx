@@ -5,8 +5,9 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import { cn, formatCral, getInitials } from '@/lib/utils'
+import Avatar from '@/components/ui/Avatar'
 import { Profile } from '@/types'
-import { LayoutDashboard, Swords, Gamepad2, Trophy, LogOut, Shield, History, User } from 'lucide-react'
+import { LayoutDashboard, Swords, Gamepad2, Trophy, LogOut, Shield, History, User, Palette } from 'lucide-react'
 
 interface SidebarProps { profile: Profile }
 
@@ -79,11 +80,12 @@ export default function Sidebar({ profile: initialProfile }: SidebarProps) {
       badge: pendingBets > 0 ? pendingBets : null
     },
     {
-      href: '/daily', label: 'Daily Game', icon: Gamepad2,
+      href: '/jeux', label: 'Jeux', icon: Gamepad2,
       dot: !hasPlayedToday
     },
     { href: '/classement', label: 'Classement', icon: Trophy },
     { href: '/historique', label: 'Historique', icon: History },
+  { href: '/avatar', label: 'Mon avatar', icon: Palette },
   ]
 
   return (
@@ -101,18 +103,13 @@ export default function Sidebar({ profile: initialProfile }: SidebarProps) {
       {/* User card */}
       <Link href="/profil" className="p-4 border-b border-cral-border hover:bg-cral-card transition-colors group">
         <div className="flex items-center gap-3">
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-cral-bg flex-shrink-0 transition-transform group-hover:scale-105"
-            style={{ backgroundColor: profile.avatar_color }}
-          >
-            {getInitials(profile.username)}
-          </div>
+          <Avatar username={profile.username} avatarColor={profile.avatar_color} avatarSvg={profile.avatar_svg} size={36} className="transition-transform group-hover:scale-105" />
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium text-cral-text truncate">{profile.username}</div>
             <div className="text-xs font-mono text-gold-400">₡{formatCral(profile.balance)}</div>
           </div>
-          {profile.role === 'super_admin' && (
-            <Shield size={13} className="text-purple-400 flex-shrink-0" />
+          {(profile.role === 'super_admin' || profile.role === 'homme_blanc_chauve') && (
+            <span className="text-xs flex-shrink-0">{profile.role === 'super_admin' ? '⚡' : '🦲'}</span>
           )}
         </div>
       </Link>

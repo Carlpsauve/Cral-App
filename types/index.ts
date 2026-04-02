@@ -1,4 +1,4 @@
-export type Role = 'super_admin' | 'plebe'
+export type Role = 'super_admin' | 'plebe' | 'homme_blanc_chauve'
 
 export interface Profile {
   id: string
@@ -7,6 +7,7 @@ export interface Profile {
   balance: number
   role: Role
   avatar_color: string
+  avatar_svg: string | null
   created_at: string
   updated_at: string
 }
@@ -32,8 +33,18 @@ export interface BetParticipant {
   bet_id: string
   user_id: string
   accepted: boolean
+  prediction: string | null
+  team: string | null
   created_at: string
   profile?: Profile
+}
+
+export interface BetCancelVote {
+  id: string
+  bet_id: string
+  voter_id: string
+  created_at: string
+  voter?: Profile
 }
 
 export interface BetVote {
@@ -50,7 +61,7 @@ export interface Transaction {
   id: string
   user_id: string
   amount: number
-  type: 'bet_win' | 'bet_loss' | 'daily_win' | 'daily_loss' | 'admin_credit' | 'admin_debit' | 'signup_bonus'
+  type: 'bet_win' | 'bet_loss' | 'bet_pending' | 'bet_refund' | 'daily_win' | 'daily_loss' | 'daily_free_win' | 'blackjack_win' | 'blackjack_loss' | 'admin_credit' | 'admin_debit' | 'signup_bonus' | 'hbc_upgrade'
   description: string
   reference_id: string | null
   created_at: string
@@ -66,6 +77,7 @@ export interface DailyPlay {
   total_bet: number
   result: SlotResult[]
   total_win: number
+  is_free_bet: boolean
   created_at: string
 }
 
@@ -82,4 +94,19 @@ export interface LeaderboardEntry {
   balance: number
   avatar_color: string
   rank: number
+}
+export interface CasinoSession {
+  id: string
+  user_id: string
+  session_date: string
+  game: 'blackjack' | 'slot'
+  total_won: number
+}
+
+export interface GeoQuestion {
+  id: number
+  clues: string[]
+  options: string[]
+  answer: string
+  reward: number // base reward in Cral$
 }

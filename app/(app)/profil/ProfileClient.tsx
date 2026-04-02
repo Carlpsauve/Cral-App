@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import { formatCral, getInitials } from '@/lib/utils'
+import Avatar from '@/components/ui/Avatar'
 import { Profile } from '@/types'
 import { User, TrendingUp, TrendingDown, Gamepad2, Swords, Edit2, Check, X } from 'lucide-react'
 
@@ -81,12 +82,7 @@ export default function ProfileClient({ profile: initialProfile, stats }: Props)
       <div className="card space-y-6">
         {/* Avatar */}
         <div className="flex items-center gap-5">
-          <div
-            className="w-20 h-20 rounded-2xl flex items-center justify-center text-2xl font-bold text-cral-bg flex-shrink-0 transition-colors duration-200"
-            style={{ backgroundColor: profile.avatar_color }}
-          >
-            {getInitials(profile.username)}
-          </div>
+          <Avatar username={profile.username} avatarColor={profile.avatar_color} avatarSvg={profile.avatar_svg} size={80} className="rounded-2xl" />
           <div className="flex-1 min-w-0">
             {editingUsername ? (
               <div className="flex items-center gap-2">
@@ -120,9 +116,11 @@ export default function ProfileClient({ profile: initialProfile, stats }: Props)
             <div className={`text-xs mt-1 px-2 py-0.5 rounded-full inline-block ${
               profile.role === 'super_admin'
                 ? 'bg-purple-400/10 text-purple-400'
+                : profile.role === 'homme_blanc_chauve'
+                ? 'bg-purple-400/5 text-purple-300'
                 : 'bg-cral-surface text-cral-sub'
             }`}>
-              {profile.role === 'super_admin' ? '⚡ Super Admin' : 'Plebe'}
+              {profile.role === 'super_admin' ? '⚡ Super Admin' : profile.role === 'homme_blanc_chauve' ? '🦲 Homme Blanc Chauve' : 'Plebe'}
             </div>
           </div>
         </div>
