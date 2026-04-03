@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase-client'
-import { handValue, type Card } from '@/lib/blackjack'
+import { createDeck, handValue, isBust, isBlackjack, type Card } from '@/lib/blackjack'
 import { formatCral } from '@/lib/utils'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
@@ -17,43 +17,36 @@ const RESULT_META: Record<string, { label: string; color: string; emoji: string 
   push:       { label: 'Égalité',     color: 'text-blue-400',   emoji: '🤝' },
   loss:       { label: 'Perdu',       color: 'text-red-400',    emoji: '❌' },
   bust:       { label: 'Bust!',       color: 'text-red-400',    emoji: '💥' },
+  standing:   { label: 'Posé',        color: 'text-cral-muted', emoji: '✋' },
 }
 
-interface GameState {
-  sessionId: string | null
-  playerHand: Card[]
-  dealerVisible: Card | null
-  dealerFull: Card[] | null
-  playerValue: number
-  dealerValue: number | null
-  result: string | null
-  netGain: number | null
-  canDouble: boolean
-  canSplit: boolean
-  // Split state
-  hand1: Card[] | null
-  hand2: Card[] | null
+interface SplitState {
+  hand1: Card[]
+  hand2: Card[]
   hand1Value: number
   hand2Value: number
   activeHand: 1 | 2
-  splitMode: boolean
   hand1Result: string | null
   hand2Result: string | null
-}
-
-const INITIAL: GameState = {
-  sessionId: null, playerHand: [], dealerVisible: null, dealerFull: null,
-  playerValue: 0, dealerValue: null, result: null, netGain: null,
-  canDouble: false, canSplit: false,
-  hand1: null, hand2: null, hand1Value: 0, hand2Value: 0,
-  activeHand: 1, splitMode: false, hand1Result: null, hand2Result: null,
+  hand1Net: number | null
+  hand2Net: number | null
 }
 
 export default function BlackjackPage() {
   const [phase, setPhase] = useState<Phase>('bet')
   const [bet, setBet] = useState(5)
   const [balance, setBalance] = useState(0)
-  const [game, setGame] = useState<GameState>(INITIAL)
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [playerHand, setPlayerHand] = useState<Card[]>([])
+  const [playerValue, setPlayerValue] = useState(0)
+  const [dealerVisible, setDealerVisible] = useState<Card | null>(null)
+  const [dealerFull, setDealerFull] = useState<Card[]>([])
+  const [dealerValue, setDealerValue] = useState<number | null>(null)
+  const [result, setResult] = useState<string | null>(null)
+  const [netGain, setNetGain] = useState<number | null>(null)
+  const [canDouble, setCanDouble] = useState(false)
+  const [canSplit, setCanSplit] = useState(false)
+  const [split, setSplit] = useState<SplitState | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const supabase = createClient()
@@ -78,7 +71,7 @@ export default function BlackjackPage() {
     })
     const data = await res.json()
     setLoading(false)
-    if (!res.ok) { setError(data.error ?? 'Erreur serveur'); return null }
+    if (!res.ok) { setError(data.error ?? 'Erreur'); return null }
     return data
   }
 
@@ -86,99 +79,194 @@ export default function BlackjackPage() {
     const data = await api('deal', { bet })
     if (!data) return
     setBalance(b => b - bet)
+    setSplit(null)
+    setDealerFull([])
+    setResult(null)
+    setNetGain(null)
+
     if (data.finished) {
-      // Natural blackjack
-      setGame(g => ({
-        ...g, playerHand: data.player_hand, dealerFull: data.dealer_full,
-        dealerValue: data.dealer_value, playerValue: data.player_value,
-        result: data.result, netGain: data.net_gain,
-        canDouble: false, canSplit: false, splitMode: false,
-      }))
+      setPlayerHand(data.player_hand)
+      setPlayerValue(data.player_value)
+      setDealerFull(data.dealer_full)
+      setDealerValue(data.dealer_value)
+      setResult(data.result)
+      setNetGain(data.net_gain)
       setBalance(data.new_balance)
       setPhase('result')
     } else {
-      setGame({
-        ...INITIAL,
-        sessionId: data.session_id,
-        playerHand: data.player_hand,
-        dealerVisible: data.dealer_visible,
-        playerValue: data.player_value,
-        canDouble: data.can_double,
-        canSplit: data.can_split,
-      })
+      setSessionId(data.session_id)
+      setPlayerHand(data.player_hand)
+      setPlayerValue(data.player_value)
+      setDealerVisible(data.dealer_visible)
+      setDealerValue(null)
+      setCanDouble(data.can_double)
+      setCanSplit(data.can_split)
       setPhase('playing')
     }
   }
 
   async function handleHit() {
-    if (!game.sessionId) return
-    const data = await api('hit', { session_id: game.sessionId })
+    if (!sessionId) return
+    const data = await api('hit', { session_id: sessionId })
     if (!data) return
-    if (data.finished) {
-      setGame(g => ({
-        ...g, playerHand: data.player_hand, playerValue: data.player_value,
-        dealerFull: data.dealer_full, dealerValue: data.dealer_value,
-        result: data.result, netGain: data.net_gain, canDouble: false, canSplit: false,
-      }))
-      setBalance(data.new_balance)
-      setPhase('result')
+
+    if (split) {
+      // In split mode
+      if (data.finished) {
+        // Both hands done
+        setDealerFull(data.dealer_full ?? [])
+        setDealerValue(data.dealer_value ?? null)
+        setNetGain(data.net_gain)
+        setBalance(data.new_balance)
+        setSplit(s => s ? {
+          ...s,
+          [split.activeHand === 1 ? 'hand1' : 'hand2']: split.activeHand === 1 ? data.hand1 : data.hand2,
+          [split.activeHand === 1 ? 'hand1Value' : 'hand2Value']: split.activeHand === 1 ? data.hand1_value : data.hand2_value,
+          hand1Result: data.hand1_result ?? s.hand1Result,
+          hand2Result: data.result ?? 'bust',
+        } : s)
+        setPhase('result')
+      } else if (data.split_continue) {
+        // Hand 1 busted, move to hand 2
+        setSplit(s => s ? {
+          ...s,
+          hand1: data.hand1,
+          hand1Value: data.hand1_value,
+          hand2: data.hand2,
+          hand2Value: data.hand2_value,
+          activeHand: 2,
+          hand1Result: 'bust',
+        } : s)
+      } else if (split.activeHand === 1) {
+        setSplit(s => s ? { ...s, hand1: data.hand1, hand1Value: data.hand1_value } : s)
+      } else {
+        setSplit(s => s ? { ...s, hand2: data.hand2, hand2Value: data.hand2_value } : s)
+      }
     } else {
-      setGame(g => ({
-        ...g, playerHand: data.player_hand, playerValue: data.player_value,
-        canDouble: false, canSplit: false,
-      }))
+      // Normal mode
+      if (data.finished) {
+        setPlayerHand(data.hand1 ?? data.player_hand ?? playerHand)
+        setPlayerValue(data.hand1_value ?? data.player_value ?? playerValue)
+        setDealerFull(data.dealer_full ?? [])
+        setDealerValue(data.dealer_value ?? null)
+        setResult(data.result)
+        setNetGain(data.net_gain)
+        setBalance(data.new_balance)
+        setPhase('result')
+      } else {
+        setPlayerHand(data.hand1 ?? playerHand)
+        setPlayerValue(data.hand1_value ?? playerValue)
+        setCanDouble(false)
+        setCanSplit(false)
+      }
     }
   }
 
   async function handleStand() {
-    if (!game.sessionId) return
-    const data = await api('stand', { session_id: game.sessionId })
+    if (!sessionId) return
+    const data = await api('stand', { session_id: sessionId })
     if (!data) return
-    setGame(g => ({
-      ...g, dealerFull: data.dealer_full, dealerValue: data.dealer_value,
-      playerValue: data.player_value, result: data.result, netGain: data.net_gain,
-      canDouble: false, canSplit: false,
-    }))
-    setBalance(data.new_balance)
-    setPhase('result')
+
+    if (data.split_continue) {
+      // Stood on hand 1, move to hand 2
+      setSplit(s => s ? {
+        ...s,
+        activeHand: 2,
+        hand1Result: 'standing',
+        hand2: data.hand2,
+        hand2Value: data.hand2_value,
+      } : s)
+    } else if (data.finished) {
+      setDealerFull(data.dealer_full ?? [])
+      setDealerValue(data.dealer_value ?? null)
+      if (split) {
+        setSplit(s => s ? {
+          ...s,
+          hand1Result: data.hand1_result ?? s.hand1Result,
+          hand2Result: data.hand2_result,
+          hand1Net: data.hand1_net,
+          hand2Net: data.hand2_net,
+        } : s)
+        setNetGain(data.net_gain)
+      } else {
+        setResult(data.result)
+        setNetGain(data.net_gain)
+        setPlayerValue(data.player_value)
+      }
+      if (data.new_balance != null) setBalance(data.new_balance)
+      setPhase('result')
+    }
   }
 
   async function handleDouble() {
-    if (!game.sessionId) return
+    if (!sessionId) return
     setBalance(b => b - bet)
-    const data = await api('double', { session_id: game.sessionId })
+    const data = await api('double', { session_id: sessionId })
     if (!data) return
-    setGame(g => ({
-      ...g, playerHand: data.player_hand, playerValue: data.player_value,
-      dealerFull: data.dealer_full, dealerValue: data.dealer_value,
-      result: data.result, netGain: data.net_gain, canDouble: false, canSplit: false,
-    }))
+    setPlayerHand(data.player_hand)
+    setPlayerValue(data.player_value)
+    setDealerFull(data.dealer_full)
+    setDealerValue(data.dealer_value)
+    setResult(data.result)
+    setNetGain(data.net_gain)
     setBalance(data.new_balance)
     setPhase('result')
   }
 
   async function handleSplit() {
-    if (!game.sessionId) return
+    if (!sessionId) return
     setBalance(b => b - bet)
-    const data = await api('split', { session_id: game.sessionId })
+    const data = await api('split', { session_id: sessionId })
     if (!data) return
-    setGame(g => ({
-      ...g, splitMode: true, activeHand: 1,
-      hand1: data.hand1, hand2: data.hand2,
-      hand1Value: data.hand1_value, hand2Value: data.hand2_value,
-      canDouble: false, canSplit: false,
-    }))
+    setSplit({
+      hand1: data.hand1,
+      hand2: data.hand2,
+      hand1Value: data.hand1_value,
+      hand2Value: data.hand2_value,
+      activeHand: 1,
+      hand1Result: null,
+      hand2Result: null,
+      hand1Net: null,
+      hand2Net: null,
+    })
+    setCanDouble(false)
+    setCanSplit(false)
   }
 
   function resetGame() {
-    setGame(INITIAL)
-    setPhase('bet')
+    setSplit(null)
+    setPlayerHand([])
+    setPlayerValue(0)
+    setDealerVisible(null)
+    setDealerFull([])
+    setDealerValue(null)
+    setResult(null)
+    setNetGain(null)
+    setCanDouble(false)
+    setCanSplit(false)
+    setSessionId(null)
     setError('')
+    setPhase('bet')
   }
 
   const chipValues = [1, 2, 5, 10, 25, 50, 100]
-  const netGain = game.netGain
-  const result = game.result
+  const isSplitMode = !!split
+  const activeHand = split?.activeHand ?? 1
+
+  // Total net for result display
+  const totalNet = isSplitMode
+    ? ((split.hand1Net ?? 0) + (split.hand2Net ?? 0))
+    : netGain ?? 0
+
+  // Summary result label for split
+  const splitSummary = isSplitMode && phase === 'result' && split ? (() => {
+    const nets = [split.hand1Net ?? 0, split.hand2Net ?? 0]
+    const won = nets.filter(n => n > 0).length
+    const lost = nets.filter(n => n < 0).length
+    if (won === 2) return { label: 'Double victoire!', emoji: '🎉', color: 'text-green-400' }
+    if (won === 1 && lost === 1) return { label: 'Split — 1/2', emoji: '🤝', color: 'text-blue-400' }
+    return { label: 'Double défaite', emoji: '❌', color: 'text-red-400' }
+  })() : null
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -193,6 +281,9 @@ export default function BlackjackPage() {
         </div>
         <div className="ml-auto">
           <div className="font-mono text-lg font-bold text-gold-400">₡{formatCral(balance)}</div>
+          {isSplitMode && phase === 'playing' && (
+            <div className="text-xs text-cral-muted text-right">Main {activeHand}/2</div>
+          )}
         </div>
       </div>
 
@@ -208,64 +299,84 @@ export default function BlackjackPage() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-green-300/70 uppercase tracking-wider">Dealer</span>
-              {phase === 'result' && game.dealerValue != null && (
-                <span className="text-xs font-mono text-green-300">{game.dealerValue}</span>
+              {phase === 'result' && dealerValue != null && (
+                <span className={`text-xs font-mono ${dealerValue > 21 ? 'text-red-400' : 'text-green-300'}`}>
+                  {dealerValue}{dealerValue > 21 ? ' — Bust!' : ''}
+                </span>
               )}
-              {phase === 'playing' && game.dealerVisible && (
-                <span className="text-xs text-green-300/50">{handValue([game.dealerVisible])} + ?</span>
+              {phase === 'playing' && dealerVisible && (
+                <span className="text-xs text-green-300/50">{handValue([dealerVisible])} + ?</span>
               )}
             </div>
             <div className="flex gap-2 flex-wrap min-h-[90px] items-center">
               {phase === 'bet' && <div className="text-green-300/30 text-sm">En attente...</div>}
-              {phase === 'playing' && game.dealerVisible && (
-                <>
-                  <CardUI card={game.dealerVisible} />
-                  <CardUI hidden />
-                </>
+              {phase === 'playing' && dealerVisible && (
+                <><CardUI card={dealerVisible} /><CardUI hidden /></>
               )}
-              {phase === 'result' && game.dealerFull && game.dealerFull.map((c, i) => (
-                <CardUI key={i} card={c} />
-              ))}
+              {phase === 'result' && dealerFull.map((c, i) => <CardUI key={i} card={c} />)}
             </div>
           </div>
 
           <div className="border-t border-green-900/50" />
 
           {/* Player hands */}
-          {!game.splitMode ? (
+          {!isSplitMode ? (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-green-300/70 uppercase tracking-wider">Vous</span>
-                {game.playerValue > 0 && (
-                  <span className={`text-xs font-mono ${game.playerValue > 21 ? 'text-red-400' : game.playerValue === 21 ? 'text-gold-400' : 'text-green-300'}`}>
-                    {game.playerValue}{game.playerValue > 21 ? ' BUST' : game.playerValue === 21 ? ' 21!' : ''}
+                {playerValue > 0 && (
+                  <span className={`text-xs font-mono ${playerValue > 21 ? 'text-red-400' : playerValue === 21 ? 'text-gold-400' : 'text-green-300'}`}>
+                    {playerValue}{playerValue > 21 ? ' BUST' : playerValue === 21 ? ' 21!' : ''}
                   </span>
                 )}
               </div>
               <div className="flex gap-2 flex-wrap min-h-[90px] items-center">
                 {phase === 'bet' && <div className="text-green-300/30 text-sm">En attente...</div>}
-                {game.playerHand.map((c, i) => <CardUI key={i} card={c} />)}
+                {playerHand.map((c, i) => <CardUI key={i} card={c} />)}
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-4">
-              {[1, 2].map(n => {
-                const hand = n === 1 ? game.hand1 : game.hand2
-                const val = n === 1 ? game.hand1Value : game.hand2Value
-                const isActive = game.activeHand === n
-                const res = n === 1 ? game.hand1Result : game.hand2Result
+            /* Split: two hands side by side */
+            <div className="grid grid-cols-2 gap-3">
+              {([1, 2] as const).map(n => {
+                const hand = n === 1 ? split.hand1 : split.hand2
+                const val = n === 1 ? split.hand1Value : split.hand2Value
+                const isActive = activeHand === n && phase === 'playing'
+                const handResult = n === 1 ? split.hand1Result : split.hand2Result
+                const handNet = n === 1 ? split.hand1Net : split.hand2Net
+                const isDone = handResult !== null && handResult !== 'standing'
+
                 return (
-                  <div key={n} className={`space-y-2 rounded-xl p-3 transition-all ${isActive ? 'bg-green-900/30 border border-green-400/20' : 'opacity-60'}`}>
+                  <div key={n} className={`rounded-xl p-3 transition-all space-y-2 ${
+                    isActive
+                      ? 'border-2 border-green-400/40 bg-green-900/20'
+                      : isDone
+                      ? 'opacity-70 border border-cral-border'
+                      : 'border border-cral-border/50 opacity-60'
+                  }`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-green-300/70">Main {n}</span>
-                      <span className={`text-xs font-mono ${val > 21 ? 'text-red-400' : val === 21 ? 'text-gold-400' : 'text-green-300'}`}>{val}</span>
+                      <span className="text-xs text-green-300/70">
+                        Main {n} {isActive ? '← active' : ''}
+                      </span>
+                      <span className={`text-xs font-mono ${val > 21 ? 'text-red-400' : val === 21 ? 'text-gold-400' : 'text-green-300'}`}>
+                        {val}{val > 21 ? ' BUST' : val === 21 ? ' 21!' : ''}
+                      </span>
                     </div>
-                    <div className="flex gap-1 flex-wrap min-h-[80px] items-center">
-                      {hand?.map((c, i) => <CardUI key={i} card={c} small />)}
+                    <div className="flex gap-1.5 flex-wrap min-h-[70px] items-center">
+                      {hand.map((c, i) => <CardUI key={i} card={c} small />)}
                     </div>
-                    {res && <div className={`text-xs text-center font-bold ${res === 'win' || res === 'blackjack' ? 'text-green-400' : res === 'push' ? 'text-blue-400' : 'text-red-400'}`}>
-                      {RESULT_META[res]?.emoji} {RESULT_META[res]?.label}
-                    </div>}
+                    {handResult && handResult !== 'standing' && (
+                      <div className={`text-xs text-center font-bold ${
+                        handResult === 'win' || handResult === 'blackjack' ? 'text-green-400' :
+                        handResult === 'push' ? 'text-blue-400' : 'text-red-400'
+                      }`}>
+                        {RESULT_META[handResult]?.emoji} {RESULT_META[handResult]?.label}
+                        {handNet != null && <span className="ml-1">({handNet > 0 ? '+' : ''}₡{formatCral(handNet)})</span>}
+                      </div>
+                    )}
+                    {handResult === 'standing' && (
+                      <div className="text-xs text-center text-cral-muted">✋ Posé</div>
+                    )}
                   </div>
                 )
               })}
@@ -274,21 +385,35 @@ export default function BlackjackPage() {
         </div>
 
         {/* Result banner */}
-        {phase === 'result' && result && (
+        {phase === 'result' && (
           <div className="px-6 pb-4">
-            <div className={`rounded-xl p-4 text-center ${
-              (netGain ?? 0) > 0 ? 'bg-green-400/15 border border-green-400/30' :
-              (netGain ?? 0) < 0 ? 'bg-red-400/15 border border-red-400/20' :
-              'bg-blue-400/10 border border-blue-400/20'
-            }`}>
-              <div className="text-3xl mb-1">{RESULT_META[result]?.emoji}</div>
-              <div className={`font-display text-2xl font-bold ${RESULT_META[result]?.color}`}>
-                {RESULT_META[result]?.label}
+            {splitSummary ? (
+              <div className={`rounded-xl p-4 text-center ${
+                totalNet > 0 ? 'bg-green-400/15 border border-green-400/30' :
+                totalNet < 0 ? 'bg-red-400/15 border border-red-400/20' :
+                'bg-blue-400/10 border border-blue-400/20'
+              }`}>
+                <div className="text-3xl mb-1">{splitSummary.emoji}</div>
+                <div className={`font-display text-xl font-bold ${splitSummary.color}`}>{splitSummary.label}</div>
+                <div className={`font-mono text-xl font-bold mt-1 ${totalNet > 0 ? 'text-green-400' : totalNet < 0 ? 'text-red-400' : 'text-blue-400'}`}>
+                  {totalNet === 0 ? 'Égalité' : `${totalNet > 0 ? '+' : ''}₡${formatCral(totalNet)}`}
+                </div>
               </div>
-              <div className={`font-mono text-xl font-bold mt-1 ${(netGain ?? 0) > 0 ? 'text-green-400' : (netGain ?? 0) < 0 ? 'text-red-400' : 'text-blue-400'}`}>
-                {netGain === 0 ? 'Mise remboursée' : `${(netGain ?? 0) > 0 ? '+' : ''}₡${formatCral(netGain ?? 0)}`}
+            ) : result ? (
+              <div className={`rounded-xl p-4 text-center ${
+                totalNet > 0 ? 'bg-green-400/15 border border-green-400/30' :
+                totalNet < 0 ? 'bg-red-400/15 border border-red-400/20' :
+                'bg-blue-400/10 border border-blue-400/20'
+              }`}>
+                <div className="text-3xl mb-1">{RESULT_META[result]?.emoji}</div>
+                <div className={`font-display text-2xl font-bold ${RESULT_META[result]?.color}`}>
+                  {RESULT_META[result]?.label}
+                </div>
+                <div className={`font-mono text-xl font-bold mt-1 ${totalNet > 0 ? 'text-green-400' : totalNet < 0 ? 'text-red-400' : 'text-blue-400'}`}>
+                  {totalNet === 0 ? 'Mise remboursée' : `${totalNet > 0 ? '+' : ''}₡${formatCral(totalNet)}`}
+                </div>
               </div>
-            </div>
+            ) : null}
           </div>
         )}
 
@@ -322,34 +447,42 @@ export default function BlackjackPage() {
           {/* Playing phase */}
           {phase === 'playing' && (
             <div className="space-y-3">
+              {isSplitMode && (
+                <div className="text-xs text-center text-green-300/60 pb-1">
+                  Jouez la <strong className="text-green-300">Main {activeHand}</strong> — Hit ou Stand
+                </div>
+              )}
               <div className="flex gap-2">
                 <button onClick={handleHit} disabled={loading}
                   className="flex-1 py-3 rounded-xl font-bold text-sm bg-blue-500/20 border border-blue-400/40 text-blue-300 hover:bg-blue-500/30 transition-all disabled:opacity-40">
-                  {loading ? '...' : 'Tirer (Hit)'}
+                  {loading ? '...' : `Tirer (Hit)`}
                 </button>
                 <button onClick={handleStand} disabled={loading}
                   className="flex-1 py-3 rounded-xl font-bold text-sm bg-red-500/20 border border-red-400/40 text-red-300 hover:bg-red-500/30 transition-all disabled:opacity-40">
-                  {loading ? '...' : 'Rester (Stand)'}
+                  {loading ? '...' : `Rester (Stand)`}
                 </button>
               </div>
-              <div className="flex gap-2">
-                {game.canDouble && (
-                  <button onClick={handleDouble} disabled={loading}
-                    className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-gold-500/15 border border-gold-400/30 text-gold-400 hover:bg-gold-500/25 transition-all disabled:opacity-40">
-                    ×2 Double Down
-                  </button>
-                )}
-                {game.canSplit && (
-                  <button onClick={handleSplit} disabled={loading}
-                    className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-purple-500/15 border border-purple-400/30 text-purple-300 hover:bg-purple-500/25 transition-all disabled:opacity-40">
-                    ✂️ Split
-                  </button>
-                )}
-              </div>
-              <div className="text-xs text-green-300/40 text-center">
-                Mise: ₡{formatCral(bet)}
-                {game.canDouble && ' · Double: ₡' + formatCral(bet * 2)}
-              </div>
+              {!isSplitMode && (
+                <div className="flex gap-2">
+                  {canDouble && (
+                    <button onClick={handleDouble} disabled={loading}
+                      className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-gold-500/15 border border-gold-400/30 text-gold-400 hover:bg-gold-500/25 transition-all disabled:opacity-40">
+                      ×2 Double Down
+                    </button>
+                  )}
+                  {canSplit && (
+                    <button onClick={handleSplit} disabled={loading}
+                      className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-purple-500/15 border border-purple-400/30 text-purple-300 hover:bg-purple-500/25 transition-all disabled:opacity-40">
+                      ✂️ Split (₡{bet})
+                    </button>
+                  )}
+                </div>
+              )}
+              {!isSplitMode && (canDouble || canSplit) && (
+                <div className="text-xs text-green-300/40 text-center">
+                  Mise: ₡{formatCral(bet)} · Total si double/split: ₡{formatCral(bet * 2)}
+                </div>
+              )}
             </div>
           )}
 
@@ -367,8 +500,7 @@ export default function BlackjackPage() {
       <div className="card text-xs text-cral-muted space-y-1">
         <div className="font-medium text-cral-sub mb-2">Règles</div>
         <div>Blackjack naturel = ×2.5 · Gagner = ×2 · Égalité = remboursé · Bust = mise perdue</div>
-        <div>Double Down: misez double, recevez 1 carte puis le dealer joue</div>
-        <div>Split: séparez une paire en 2 mains indépendantes</div>
+        <div>Double Down: misez double, 1 carte puis dealer joue · Split: 2 mains indépendantes</div>
         <div>Dealer tire jusqu&apos;à 17 · Mise ₡1–₡500 · Parties illimitées</div>
       </div>
     </div>
@@ -378,24 +510,22 @@ export default function BlackjackPage() {
 function CardUI({ card, hidden = false, small = false }: { card?: Card; hidden?: boolean; small?: boolean }) {
   const w = small ? 'w-11' : 'w-14'
   const h = small ? 'h-16' : 'h-20'
-  const textSm = small ? 'text-[10px]' : 'text-xs'
-  const textLg = small ? 'text-base' : 'text-lg'
+  const rankSize = small ? 'text-[10px]' : 'text-xs'
+  const suitSize = small ? 'text-base' : 'text-lg'
 
-  if (hidden) {
-    return (
-      <div className={`${w} ${h} rounded-lg flex items-center justify-center text-xl`}
-        style={{ background: 'linear-gradient(135deg, #1e3a5f, #0f2040)', border: '1px solid rgba(96,165,250,0.3)' }}>
-        🂠
-      </div>
-    )
-  }
+  if (hidden) return (
+    <div className={`${w} ${h} rounded-lg flex items-center justify-center text-xl`}
+      style={{ background: 'linear-gradient(135deg, #1e3a5f, #0f2040)', border: '1px solid rgba(96,165,250,0.3)' }}>
+      🂠
+    </div>
+  )
   if (!card) return null
   const isRed = card.suit === '♥' || card.suit === '♦'
   return (
-    <div className={`${w} ${h} rounded-lg flex flex-col items-center justify-center gap-0.5 select-none shadow-md`}
+    <div className={`${w} ${h} rounded-lg flex flex-col items-center justify-center gap-0.5 select-none shadow-sm`}
       style={{ background: '#fff', border: '1px solid #e5e7eb' }}>
-      <div className={`${textSm} font-bold leading-none`} style={{ color: isRed ? '#dc2626' : '#1f2937' }}>{card.rank}</div>
-      <div className={`${textLg} leading-none`} style={{ color: isRed ? '#dc2626' : '#1f2937' }}>{card.suit}</div>
+      <div className={`${rankSize} font-bold leading-none`} style={{ color: isRed ? '#dc2626' : '#1f2937' }}>{card.rank}</div>
+      <div className={`${suitSize} leading-none`} style={{ color: isRed ? '#dc2626' : '#1f2937' }}>{card.suit}</div>
     </div>
   )
 }

@@ -91,6 +91,23 @@ export default async function JeuxPage() {
             <div className="text-cral-muted group-hover:text-gold-400 transition-colors">→</div>
           </div>
         </Link>
+
+        <Link href="/jeux/bigcral" className="card hover:border-gold-500/30 transition-all duration-200 group block">
+          <div className="flex items-center gap-5">
+            <div className="text-4xl flex-shrink-0 group-hover:scale-110 transition-transform">🎡</div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 mb-1">
+                <span className="font-display text-lg font-bold text-cral-text">Big Cral</span>
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium text-purple-300 bg-purple-400/10">
+                  Joker ×45
+                </span>
+              </div>
+              <div className="text-sm text-cral-sub">Roue Big 6 · Misez sur plusieurs cases · Joker & Flag = ×45</div>
+              <div className="text-xs text-cral-muted mt-1">54 cases · ₡1 à ₡500 par tour</div>
+            </div>
+            <div className="text-cral-muted group-hover:text-gold-400 transition-colors">→</div>
+          </div>
+        </Link>
       </div>
     </div>
   )

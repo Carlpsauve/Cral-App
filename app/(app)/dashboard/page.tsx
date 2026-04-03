@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase-server'
 import { formatCral, formatDate, getStatusLabel, getStatusColor, cn } from '@/lib/utils'
 import { TrendingUp, TrendingDown, Swords, Gamepad2 } from 'lucide-react'
 import Link from 'next/link'
+import DashboardWheelTrigger from './DashboardWheelTrigger'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -169,6 +170,7 @@ export default async function DashboardPage() {
           </div>
         </div>
       )}
+      <DashboardWheelTrigger />
     </div>
   )
 }

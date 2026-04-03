@@ -93,3 +93,23 @@ CREATE TABLE IF NOT EXISTS public.blackjack_sessions (
 ALTER TABLE public.blackjack_sessions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "bjs_all" ON public.blackjack_sessions;
 CREATE POLICY "bjs_all" ON public.blackjack_sessions FOR ALL USING (auth.uid() = user_id);
+
+-- Add split_hand and active_hand columns to blackjack_sessions
+ALTER TABLE public.blackjack_sessions ADD COLUMN IF NOT EXISTS split_hand JSONB;
+ALTER TABLE public.blackjack_sessions ADD COLUMN IF NOT EXISTS active_hand INTEGER DEFAULT 1;
+ALTER TABLE public.blackjack_sessions ADD COLUMN IF NOT EXISTS hand1_result TEXT;
+ALTER TABLE public.blackjack_sessions ADD COLUMN IF NOT EXISTS hand1_net NUMERIC(12,2);
+
+-- Daily fortune wheel
+CREATE TABLE IF NOT EXISTS public.daily_wheel (
+  id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id     UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  played_date DATE NOT NULL,
+  reward      NUMERIC(12,2) NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(user_id, played_date)
+);
+ALTER TABLE public.daily_wheel ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "dw_all" ON public.daily_wheel;
+CREATE POLICY "dw_all" ON public.daily_wheel FOR ALL USING (auth.uid() = user_id);
+ALTER PUBLICATION supabase_realtime ADD TABLE public.daily_wheel;
