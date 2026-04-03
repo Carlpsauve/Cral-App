@@ -41,6 +41,7 @@ module.exports = {
         'slot-spin': 'slotSpin 0.15s linear infinite',
         'shimmer': 'shimmer 2s linear infinite',
         'float': 'float 3s ease-in-out infinite',
+        'shake': 'shake 0.4s ease-in-out infinite',
       },
       keyframes: {
         pulseGold: {
@@ -58,6 +59,12 @@ module.exports = {
         float: {
           '0%, 100%': { transform: 'translateY(0px)' },
           '50%': { transform: 'translateY(-6px)' },
+        },
+        shake: {
+          '0%, 100%': { transform: 'translateX(0) rotate(0deg)' },
+          '25%': { transform: 'translateX(-5px) rotate(-5deg)' },
+          '50%': { transform: 'translateX(5px) rotate(5deg)' },
+          '75%': { transform: 'translateX(-5px) rotate(-5deg)' },
         }
       },
       backgroundImage: {

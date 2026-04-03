@@ -32,3 +32,24 @@ export async function getCardDetails(id: string): Promise<TCGCardDetails | null>
     return null;
   }
 }
+
+export interface TCGSetDetails {
+  id: string;
+  name: string;
+  cards: TCGCardDef[];
+}
+
+// Fonction pour récupérer toutes les cartes d'un set
+export async function getSetDetails(setId: string): Promise<TCGSetDetails | null> {
+  try {
+    const res = await fetch(`https://api.tcgdex.net/v2/fr/sets/${setId}`, {
+      next: { revalidate: 86400 } // En cache pour 24h
+    });
+    
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (error) {
+    console.error("Erreur récupération Set TCGdex:", error);
+    return null;
+  }
+}

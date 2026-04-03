@@ -18,7 +18,7 @@ const navItems = [
   { href: '/dashboard', label: 'Home', icon: LayoutDashboard },
   { href: '/gajures', label: 'Gajures', icon: Swords },
   { href: '/jeux', label: 'Jeux', icon: Gamepad2 },
-  { href: '/shop/collection', label: 'Boutique', icon: Store }, 
+  { href: '/shop/boosters', label: 'Boutique', icon: Store }, 
   { href: '/classement', label: 'Top', icon: Trophy },
   { href: '/historique', label: 'Historique', icon: History },
 ]

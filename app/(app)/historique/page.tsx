@@ -22,6 +22,8 @@ const TYPE_LABELS: Record<string, string> = {
   bet_refund: '↩️ Gajure — remboursement',
   blackjack_win: '🃏 Blackjack — gain',
   blackjack_loss: '🃏 Blackjack — perte',
+  shop_booster: '📦 Boutique — achat booster',
+  shop_sell: '💰 Boutique — revente carte',
 }
 
 export default async function HistoriquePage() {

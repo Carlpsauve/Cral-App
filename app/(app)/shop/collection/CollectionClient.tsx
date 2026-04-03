@@ -1,20 +1,59 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { X } from "lucide-react"; // Ajout de l'icône pour fermer
+import { X, Sparkles } from "lucide-react";
 import { TCGCardDetails } from "@/lib/tcgdex";
+import { BOOSTER_CONFIG } from "@/config/boosters";
+import { RARITY_RATIOS, SPECIAL_CARD_PRICES } from "@/config/cards";
 
 export type CollectionItem = TCGCardDetails & { quantity: number; card_ids: string[] };
 
-export default function CollectionClient({ collection }: { collection: CollectionItem[] }) {
+export default function CollectionClient({ collection, isPublic = false }: { collection: CollectionItem[], isPublic?: boolean }) {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [rarityFilter, setRarityFilter] = useState("Toutes");
-  // Nouvel état pour gérer la carte sélectionnée pour le modal
   const [selectedCard, setSelectedCard] = useState<CollectionItem | null>(null);
+  const [isSelling, setIsSelling] = useState(false);
 
+  // Liste unique des raretés présentes dans la collection pour le filtre
   const rarities = ["Toutes", ...Array.from(new Set(collection.map((c) => c.rarity).filter(Boolean)))];
 
+  // Fonction pour déterminer le prix de base selon la rareté et le booster
+  const getBasePrice = (rarity: string | undefined, name: string, setId: string) => {
+    const cardName = name.toLowerCase();
+
+    // 1. Exceptions VIP (Prix fixes prioritaires)
+    const specialKey = Object.keys(SPECIAL_CARD_PRICES).find(key => 
+        cardName.includes(key)
+    );
+    if (specialKey) {
+        return SPECIAL_CARD_PRICES[specialKey as keyof typeof SPECIAL_CARD_PRICES];
+    }
+
+    // 2. Calcul dynamique basé sur le prix du booster
+    const packPrice = BOOSTER_CONFIG[setId as keyof typeof BOOSTER_CONFIG]?.price || 20;
+    
+    const r = rarity?.toLowerCase() || "";
+    const ratioKey = Object.keys(RARITY_RATIOS).find(key => 
+        r.includes(key)
+    );
+
+    const ratio = ratioKey ? RARITY_RATIOS[ratioKey] : 0.05; // 5% par défaut (commune)
+    
+    return Math.round((packPrice * ratio) * 10) / 10;
+  };
+
+  // Calcul de la valeur totale du classeur
+  const totalCollectionValue = useMemo(() => {
+    return collection.reduce((acc, item) => {
+        const unitPrice = getBasePrice(item.rarity, item.name, item.set.id);
+        return acc + (unitPrice * item.quantity);
+    }, 0);
+  }, [collection]);
+
+  // Filtrage de la collection (Recherche + Rareté)
   const filteredCollection = useMemo(() => {
     return collection.filter((item) => {
       const matchName = item.name.toLowerCase().includes(search.toLowerCase());
@@ -23,8 +62,71 @@ export default function CollectionClient({ collection }: { collection: Collectio
     });
   }, [collection, search, rarityFilter]);
 
+  const handleSellCard = async () => {
+    if (!selectedCard || selectedCard.card_ids.length === 0) return;
+    setIsSelling(true);
+
+    try {
+      const cardIdToSell = selectedCard.card_ids[selectedCard.card_ids.length - 1];
+
+      const res = await fetch("/api/shop/sell", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cardId: cardIdToSell,
+          tcgdexId: selectedCard.id
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      router.refresh();
+
+      if (selectedCard.quantity > 1) {
+        setSelectedCard({
+          ...selectedCard,
+          quantity: selectedCard.quantity - 1,
+          card_ids: selectedCard.card_ids.slice(0, -1)
+        });
+      } else {
+        setSelectedCard(null);
+      }
+
+    } catch (error) {
+      console.error("Erreur lors de la vente:", error);
+      alert("Erreur lors de la vente de la carte.");
+    } finally {
+      setIsSelling(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* EN-TÊTE DE VALEUR TOTALE */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 bg-gray-900/50 p-6 rounded-2xl border border-gray-800 shadow-xl">
+        <div>
+          <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+            Classeur Pokémon 
+            {isPublic && (
+              <span className="text-sm font-normal text-gray-500 bg-gray-800 px-3 py-1 rounded-full italic">
+                Vue publique
+              </span>
+            )}
+          </h1>
+          <p className="text-gray-400 mt-1">{collection.length} cartes uniques collectées</p>
+        </div>
+
+        <div className="flex flex-col items-end">
+          <span className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-1">
+            Estimation du classeur
+          </span>
+          <div className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-600 drop-shadow-sm">
+            ₡{totalCollectionValue.toLocaleString()}
+          </div>
+        </div>
+      </div>
+
       {/* Barre de filtres */}
       <div className="flex flex-col sm:flex-row gap-4 bg-gray-900 p-4 rounded-lg border border-gray-800">
         <input
@@ -56,8 +158,8 @@ export default function CollectionClient({ collection }: { collection: Collectio
           filteredCollection.map((item) => (
             <div 
               key={item.id} 
-              className="relative group perspective-1000 cursor-pointer" // Ajout du cursor-pointer
-              onClick={() => setSelectedCard(item)} // Ouvre le modal au clic
+              className="relative group perspective-1000 cursor-pointer"
+              onClick={() => setSelectedCard(item)}
             >
               {item.quantity > 1 && (
                 <div className="absolute -top-2 -right-2 z-10 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full border-2 border-gray-900 shadow-lg">
@@ -86,18 +188,16 @@ export default function CollectionClient({ collection }: { collection: Collectio
         )}
       </div>
 
-      {/* MODAL (S'affiche uniquement si une carte est sélectionnée) */}
+      {/* MODAL */}
       {selectedCard && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-          onClick={() => setSelectedCard(null)} // Ferme le modal si on clique à côté de la carte
+          onClick={() => setSelectedCard(null)}
         >
-          {/* Conteneur principal du modal */}
           <div 
             className="relative flex flex-col md:flex-row bg-[#12121a] border border-[#2a2a40] rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl"
-            onClick={(e) => e.stopPropagation()} // Empêche la fermeture si on clique SUR la fenêtre
+            onClick={(e) => e.stopPropagation()}
           >
-            {/* Bouton de fermeture */}
             <button 
               onClick={() => setSelectedCard(null)}
               className="absolute top-4 right-4 z-10 p-2 text-gray-400 bg-gray-900/80 rounded-full hover:text-white hover:bg-gray-800 transition-colors"
@@ -105,7 +205,6 @@ export default function CollectionClient({ collection }: { collection: Collectio
               <X size={20} />
             </button>
 
-            {/* Zone de l'image en grand (Gauche) */}
             <div className="relative w-full md:w-1/2 p-6 flex items-center justify-center bg-black/40">
               <div className="relative w-full max-w-[350px] aspect-[63/88] rounded-xl overflow-hidden shadow-2xl">
                 {selectedCard.image ? (
@@ -115,7 +214,7 @@ export default function CollectionClient({ collection }: { collection: Collectio
                     fill
                     sizes="(max-width: 768px) 100vw, 50vw"
                     className="object-contain"
-                    priority // Charge l'image en priorité
+                    priority
                   />
                 ) : (
                   <div className="w-full h-full bg-gray-800 flex items-center justify-center text-gray-400">
@@ -125,16 +224,15 @@ export default function CollectionClient({ collection }: { collection: Collectio
               </div>
             </div>
 
-            {/* Zone des détails (Droite) */}
             <div className="w-full md:w-1/2 p-6 md:p-10 flex flex-col justify-center overflow-y-auto">
               <h2 className="text-3xl font-bold text-white mb-2">{selectedCard.name}</h2>
-              
-              <div className="flex items-center gap-3 mb-6">
+            
+              <div className="flex flex-wrap items-center gap-3 mb-6">
                 <span className="px-3 py-1 bg-gray-800 border border-gray-700 rounded-full text-sm font-medium text-gray-300">
                   {selectedCard.rarity || "Standard"}
                 </span>
-                <span className="px-3 py-1 bg-blue-900/30 border border-blue-800 rounded-full text-sm font-medium text-blue-400">
-                  {selectedCard.category}
+                <span className="px-3 py-1 bg-yellow-900/30 border border-yellow-800 rounded-full text-sm font-medium text-yellow-400 flex items-center gap-1">
+                  Valeur : ~₡{getBasePrice(selectedCard.rarity, selectedCard.name, selectedCard.set.id)}
                 </span>
               </div>
 
@@ -157,12 +255,20 @@ export default function CollectionClient({ collection }: { collection: Collectio
                 )}
               </div>
 
-              {/* Préparation pour la phase 6 : Le Recyclage */}
-              <div className="mt-8 pt-6 border-t border-gray-800">
-                <button className="w-full py-3 bg-gray-800/50 hover:bg-gray-800 text-gray-500 hover:text-gray-300 rounded-lg font-medium transition-colors border border-gray-700 cursor-not-allowed" disabled>
-                  Vendre au système (Bientôt disponible)
-                </button>
-              </div>
+              {!isPublic && (
+                <div className="mt-8 pt-6 border-t border-gray-800">
+                  <button 
+                    onClick={handleSellCard}
+                    disabled={isSelling}
+                    className="w-full py-3 bg-red-900/30 hover:bg-red-800/50 text-red-400 hover:text-red-300 rounded-lg font-medium transition-colors border border-red-900/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSelling 
+                      ? "Vente en cours..." 
+                      : `Vendre un exemplaire (~₡${getBasePrice(selectedCard.rarity, selectedCard.name, selectedCard.set.id)})`
+                    }
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

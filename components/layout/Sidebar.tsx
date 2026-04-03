@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase-client'
 import { cn, formatCral, getInitials } from '@/lib/utils'
 import Avatar from '@/components/ui/Avatar'
 import { Profile } from '@/types'
-import { LayoutDashboard, Swords, Gamepad2, Trophy, LogOut, Shield, History, User, Palette, Store } from 'lucide-react'
+import { LayoutDashboard, Swords, Gamepad2, Trophy, LogOut, Shield, History, User, Palette, Store, BookOpen } from 'lucide-react'
 
 interface SidebarProps { profile: Profile }
 
@@ -83,7 +83,8 @@ export default function Sidebar({ profile: initialProfile }: SidebarProps) {
       href: '/jeux', label: 'Jeux', icon: Gamepad2,
       dot: !hasPlayedToday
     },
-    { href: '/shop/collection', label: 'Boutique', icon: Store },
+    { href: '/shop/boosters', label: 'Boutique', icon: Store },
+    { href: '/shop/collection', label: 'Collection', icon: BookOpen },
     { href: '/classement', label: 'Classement', icon: Trophy },
     { href: '/historique', label: 'Historique', icon: History },
   { href: '/avatar', label: 'Mon avatar', icon: Palette },
