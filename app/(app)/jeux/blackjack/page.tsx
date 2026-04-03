@@ -123,7 +123,9 @@ export default function BlackjackPage() {
           [split.activeHand === 1 ? 'hand1' : 'hand2']: split.activeHand === 1 ? data.hand1 : data.hand2,
           [split.activeHand === 1 ? 'hand1Value' : 'hand2Value']: split.activeHand === 1 ? data.hand1_value : data.hand2_value,
           hand1Result: data.hand1_result ?? s.hand1Result,
-          hand2Result: data.result ?? 'bust',
+          hand2Result: data.hand2_result ?? data.result ?? 'bust',
+          hand1Net: data.hand1_net ?? s.hand1Net, // <-- CORRECTIF NET
+          hand2Net: data.hand2_net ?? null,      // <-- CORRECTIF NET
         } : s)
         setPhase('result')
       } else if (data.split_continue) {

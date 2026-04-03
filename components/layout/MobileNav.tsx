@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Profile } from '@/types'
-import { LayoutDashboard, Swords, Gamepad2, Trophy, History } from 'lucide-react'
+// 1. AJOUT DE 'Store' ICI 👇
+import { LayoutDashboard, Swords, Gamepad2, Trophy, History, Store } from 'lucide-react'
 
 interface MobileNavProps {
   profile: Profile
@@ -12,10 +13,12 @@ interface MobileNavProps {
   hasPlayedToday?: boolean
 }
 
+// 2. AJOUT DU SHOP DANS LE TABLEAU 👇
 const navItems = [
   { href: '/dashboard', label: 'Home', icon: LayoutDashboard },
   { href: '/gajures', label: 'Gajures', icon: Swords },
   { href: '/jeux', label: 'Jeux', icon: Gamepad2 },
+  { href: '/shop/collection', label: 'Boutique', icon: Store }, 
   { href: '/classement', label: 'Top', icon: Trophy },
   { href: '/historique', label: 'Historique', icon: History },
 ]

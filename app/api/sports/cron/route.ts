@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   const { data: pendingMatches } = await supabase
     .from('sport_matches')
     .select('*')
-    .eq('status', 'upcoming')
+    .in('status', ['upcoming', 'live']) // ✅ Accepte les deux statuts
     .lt('commence_time', now)
     .eq('result_checked', false)
 

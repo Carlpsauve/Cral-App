@@ -24,27 +24,59 @@ export async function POST(request: NextRequest) {
     const hand2 = [...(session.split_hand as any[]), card]
     const pv = handValue(hand2)
 
-    if (isBust(hand2)) {
-      // Hand 2 busts — game over (hand 1 already resolved)
-      const { data: profile } = await supabase.from('profiles').select('balance').eq('id', user.id).single()
-      const hand1Net = session.hand1_net as number ?? 0
-      // hand2 loss already deducted at bet time, no refund
+  if (isBust(hand2)) {
+      // Main 2 bust — fin du jeu. On doit vérifier le statut de la Main 1.
+      const hand1Busted = session.hand1_result === 'bust'
+      let dealerFull = session.dealer_hand as any[]
+      let hand1Net = session.hand1_net as number ?? 0
+      let hand1FinalResult = session.hand1_result
+
+      if (!hand1Busted) {
+        // La Main 1 s'était posée (standing) ! Le croupier DOIT jouer.
+        const dp = dealerPlay(session.dealer_hand, deck)
+        dealerFull = dp.hand
+        const r1 = evaluateResult(session.player_hand, dealerFull)
+        const p1 = Math.round(session.bet * resultMultiplier(r1) * 100) / 100
+        hand1Net = Math.round((p1 - session.bet) * 100) / 100
+        hand1FinalResult = r1
+
+        if (hand1Net !== 0) {
+          await supabase.from('transactions').insert({
+            user_id: user.id, amount: hand1Net, type: hand1Net > 0 ? 'blackjack_win' : 'blackjack_loss',
+            description: `Blackjack split main 1 ${r1} — mise ₡${session.bet}`,
+          })
+        }
+        // Payer la Main 1
+        const { data: p } = await supabase.from('profiles').select('balance').eq('id', user.id).single()
+        await supabase.from('profiles').update({ balance: (p?.balance ?? 0) + p1 }).eq('id', user.id)
+      }
+
+      // Re-fetch la balance finale
+      const { data: finalProfile } = await supabase.from('profiles').select('balance').eq('id', user.id).single()
+      const totalNet = hand1Net + (-session.bet)
+
       await supabase.from('blackjack_sessions').update({
         split_hand: hand2, deck, status: 'resolved', result: 'bust',
-        net_gain: hand1Net + (-session.bet),
+        net_gain: totalNet,
+        hand1_result: hand1FinalResult,
+        hand1_net: hand1Net
       }).eq('id', session_id)
+
       await supabase.from('transactions').insert({
         user_id: user.id, amount: -session.bet, type: 'blackjack_loss',
         description: `Blackjack split main 2 bust — mise ₡${session.bet}`,
       })
+
       return NextResponse.json({
         hand2, hand2_value: pv, active_hand: 2,
         bust_hand2: true, finished: true,
-        net_gain: hand1Net + (-session.bet),
-        new_balance: profile?.balance ?? 0,
+        dealer_full: dealerFull, dealer_value: handValue(dealerFull), // <-- LE CORRECTIF VISUEL EST ICI
+        hand1_result: hand1FinalResult, hand1_net: hand1Net,
+        hand2_result: 'bust', hand2_net: -session.bet,
+        net_gain: totalNet, new_balance: finalProfile?.balance ?? 0,
       })
     }
-
+    
     await supabase.from('blackjack_sessions').update({ split_hand: hand2, deck }).eq('id', session_id)
     return NextResponse.json({ hand2, hand2_value: pv, active_hand: 2, finished: false })
 

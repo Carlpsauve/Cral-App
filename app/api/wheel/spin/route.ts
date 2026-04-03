@@ -5,7 +5,7 @@ import { getMontrealDateString } from '@/lib/slots'
 export const dynamic = 'force-dynamic'
 
 // Prize configuration
-export const WHEEL_PRIZES = [
+const WHEEL_PRIZES = [
   { amount: 1,    probability: 0.0499, label: '₡1',   color: '#6b7280' },
   { amount: 2.5,  probability: 0.10,   label: '₡2.50', color: '#60a5fa' },
   { amount: 5,    probability: 0.60,   label: '₡5',   color: '#34d399' },

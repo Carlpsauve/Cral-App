@@ -15,29 +15,36 @@ const SEGMENTS = [
   { id: 'twelve', label: '12',    multiplier: 12, color: '#1d4ed8', textColor: '#fff', darkColor: '#1e3a8a', count: 4  },
   { id: 'tfive',  label: '25',    multiplier: 25, color: '#ca8a04', textColor: '#fff', darkColor: '#78350f', count: 2  },
   { id: 'fifty',  label: '50',    multiplier: 50, color: '#db2777', textColor: '#fff', darkColor: '#831843', count: 1  },
-  { id: 'joker',  label: 'JOKER', multiplier: 45, color: '#581c87', textColor: '#fbbf24', darkColor: '#3b0764', count: 1 },
+  { id: 'joker',  label: 'JOKER', multiplier: 50, color: '#581c87', textColor: '#fbbf24', darkColor: '#3b0764', count: 1 },
 ]
 
-// Build interleaved wheel (54 segments, visually balanced)
-const WHEEL_ORDER = (() => {
-  const bins = SEGMENTS.map(s => Array(s.count).fill(s) as typeof SEGMENTS[0][])
-  const result: typeof SEGMENTS[0][] = []
-  let i = 0
-  while (result.length < 54) {
-    const bin = bins[i % bins.length]
-    if (bin.length > 0) result.push(bin.pop()!)
-    i++
-  }
-  return result
-})()
+// ⚠️ WHEEL_ORDER must be kept in sync with app/api/bigcral/spin/route.ts
+// Same hand-crafted layout: 1s intercalés entre chaque autre segment.
+// 50 et Joker sont côte à côte (ils sont uniques, pas assez de 1s pour tous les gaps).
+const _one    = SEGMENTS[0]
+const _three  = SEGMENTS[1]
+const _six    = SEGMENTS[2]
+const _twelve = SEGMENTS[3]
+const _tfive  = SEGMENTS[4]
+const _fifty  = SEGMENTS[5]
+const _joker  = SEGMENTS[6]
+
+const WHEEL_ORDER = [
+  _one, _three, _one, _six,   _one, _three, _one, _twelve, _one, _three,
+  _one, _six,   _one, _three, _one, _tfive, _one, _three,  _one, _six,
+  _one, _three, _one, _twelve,_one, _three, _one, _six,    _one, _three,
+  _one, _tfive, _one, _three, _one, _six,   _one, _three,  _one, _twelve,
+  _one, _three, _one, _six,   _one, _three, _one, _twelve, _one, _three,
+  _fifty, _joker, _one, _three,
+]
 
 const NUM_SEGS = WHEEL_ORDER.length // 54
-const SEG_DEG = 360 / NUM_SEGS
+const SEG_DEG = 360 / NUM_SEGS      // 6.666...°
 const SEG_RAD = (2 * Math.PI) / NUM_SEGS
 
 type Phase = 'idle' | 'spinning' | 'result'
 
-// Build SVG path for one wheel segment
+// Build SVG path for one wheel segment (annular sector)
 function segPath(index: number, inner: number, outer: number, cx: number, cy: number) {
   const start = index * SEG_RAD - Math.PI / 2
   const end = (index + 1) * SEG_RAD - Math.PI / 2
@@ -104,17 +111,39 @@ export default function BigCralPage() {
 
     if (!res.ok) { setError(data.error); setPhase('idle'); return }
 
-    // Animate to correct segment
-    // landed_index = position in WHEEL_ORDER
+    // landed_index = index in WHEEL_ORDER (0-based).
+    // The pointer sits at the TOP of the wheel (12 o'clock).
+    // Segment i has its START edge at i * SEG_DEG from 12 o'clock (clockwise),
+    // and its CENTER at i * SEG_DEG + SEG_DEG/2.
+    //
+    // After rotation R, the segment that sits under the pointer is the one
+    // whose center aligns with 0° (top). We want:
+    //   (idx * SEG_DEG + SEG_DEG/2 + R) mod 360 === 0
+    //   => R = -(idx * SEG_DEG + SEG_DEG/2) mod 360
+    //   => toTop = (360 - (idx * SEG_DEG + SEG_DEG/2) % 360) % 360
+    //
+    // Small jitter (±10% of one segment) so consecutive same-value spins
+    // don't look robotic, but still clearly within the correct segment.
     const idx = data.landed_index ?? 0
-    // Each segment is SEG_DEG degrees. Pointer at top = 0°.
-    // Segment at index 0 has its CENTER at SEG_DEG/2 from top.
-    // To bring segment idx to the top pointer:
-    // rotate so that: rotation + idx * SEG_DEG + SEG_DEG/2 = 360 * n
-    // => rotation = 360*n - idx*SEG_DEG - SEG_DEG/2
-    const jitter = (Math.random() - 0.5) * SEG_DEG * 0.5
-    const toTop = (360 - (idx * SEG_DEG + SEG_DEG / 2) + jitter + 360) % 360
-    const targetRotation = rotation + 5 * 360 + toTop
+    const centerAngle = idx * SEG_DEG + SEG_DEG / 2
+    const jitter = (Math.random() - 0.5) * SEG_DEG * 0.2
+    const toTop = ((360 - centerAngle % 360) % 360) + jitter
+
+    // --- NOUVEAU CALCUL DE ROTATION ---
+    // 1. Trouver où la roue se trouve actuellement dans son cycle de 360°
+    const currentMod = rotation % 360
+
+    // 2. Calculer l'écart exact pour atteindre le nouvel angle cible
+    let diff = toTop - currentMod
+
+    // 3. Forcer la rotation vers l'avant si l'écart est négatif
+    if (diff < 0) {
+      diff += 360
+    }
+
+    // 4. Ajouter les 5 tours d'animation + l'écart précis
+    const targetRotation = rotation + 5 * 360 + diff
+    // ----------------------------------
 
     setRotation(targetRotation)
 
@@ -129,7 +158,7 @@ export default function BigCralPage() {
   }
 
   function reset() {
-    setBets({})
+    //setBets({})
     setLandedId(null)
     setNetGain(0)
     setPhase('idle')
@@ -187,14 +216,12 @@ export default function BigCralPage() {
 
             {/* Segments */}
             {WHEEL_ORDER.map((seg, i) => {
-              const midAngle = (i + 0.5) * SEG_RAD - Math.PI / 2
+              const midAngle = i * SEG_RAD + SEG_RAD / 2 - Math.PI / 2
               const lx = CX + R_LABEL * Math.cos(midAngle)
               const ly = CY + R_LABEL * Math.sin(midAngle)
-              const textRotDeg = (i + 0.5) * SEG_DEG
-
-              // Alternate slightly lighter/darker shading
-              const isEven = i % 2 === 0
-              const fillColor = isEven ? seg.color : seg.darkColor
+              const textRotDeg = (midAngle * 180) / Math.PI
+              const isLanded = phase === 'result' && seg.id === landedId
+              const fillColor = isLanded ? (seg.darkColor ?? seg.color) : seg.color
 
               return (
                 <g key={i}>

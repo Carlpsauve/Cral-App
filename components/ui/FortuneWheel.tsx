@@ -73,19 +73,28 @@ export default function FortuneWheel({ onClose, onWin }: WheelProps) {
       return
     }
 
-    // Find target segment index
-    const prizeIdx = data.prize_index
-    // Map API prize index to wheel segment
-    // Segment 0 is at top (pointer), we need to land on prizeIdx
-    // Each segment is SEGMENT_ANGLE degrees
-    // We spin 5 full rotations + offset to land on prize
-    const segmentOffset = prizeIdx * SEGMENT_ANGLE
-    // Pointer is at top (0°), segment 0 center is at top
-    // To bring segment prizeIdx to top: rotate by (360 - segmentOffset) + random within segment
-    const jitter = Math.random() * (SEGMENT_ANGLE * 0.6) - SEGMENT_ANGLE * 0.3
-    const targetRotation = rotation + 5 * 360 + (360 - segmentOffset + jitter)
+    // --- NOUVEAU CALCUL SYNCHRONISÉ ---
+    
+    // 1. Trouver TOUTES les cases visuelles (sur 12) qui correspondent au montant gagné
+    const matchingIndices = PRIZES
+      .map((p, index) => p.amount === data.reward ? index : -1)
+      .filter(index => index !== -1)
+
+    // 2. Choisir une de ces cases au hasard (pour que la roue ne s'arrête pas toujours au même endroit)
+    const visualPrizeIdx = matchingIndices[Math.floor(Math.random() * matchingIndices.length)]
+
+    // 3. Calculer l'angle pour que le centre de cette case pointe exactement en haut (à -90° / 12h)
+    const centerAngle = visualPrizeIdx * SEGMENT_ANGLE + (SEGMENT_ANGLE / 2)
+    const toTop = 360 - centerAngle
+
+    // 4. Ajouter un léger décalage (jitter) pour un effet organique (±10° environ)
+    const jitter = (Math.random() - 0.5) * (SEGMENT_ANGLE * 0.7)
+
+    // 5. Calculer la rotation finale
+    const targetRotation = rotation + 5 * 360 + toTop + jitter
 
     setRotation(targetRotation)
+    // ----------------------------------
 
     // Wait for animation (3s)
     setTimeout(() => {
