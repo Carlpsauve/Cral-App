@@ -10,40 +10,43 @@ import { RARITY_RATIOS, SPECIAL_CARD_PRICES } from "@/config/cards";
 
 export type CollectionItem = TCGCardDetails & { quantity: number; card_ids: string[] };
 
+// OPTIMISATION : On sort la fonction du composant pour de meilleures performances
+const getBasePrice = (rarity: string | undefined, name: string, setId: string) => {
+  const cardName = name.toLowerCase();
+
+  // 1. Exceptions VIP (Prix fixes prioritaires)
+  const specialKey = Object.keys(SPECIAL_CARD_PRICES).find(key => 
+      cardName.includes(key)
+  );
+  if (specialKey) {
+      return SPECIAL_CARD_PRICES[specialKey as keyof typeof SPECIAL_CARD_PRICES];
+  }
+
+  // 2. Calcul dynamique basé sur le prix du booster
+  const packPrice = BOOSTER_CONFIG[setId as keyof typeof BOOSTER_CONFIG]?.price || 20;
+  
+  const r = rarity?.toLowerCase() || "";
+  const ratioKey = Object.keys(RARITY_RATIOS).find(key => 
+      r.includes(key)
+  );
+
+  const ratio = ratioKey ? RARITY_RATIOS[ratioKey] : 0.05; // 5% par défaut (commune)
+  
+  return Math.round((packPrice * ratio) * 10) / 10;
+};
+
+
 export default function CollectionClient({ collection, isPublic = false }: { collection: CollectionItem[], isPublic?: boolean }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [rarityFilter, setRarityFilter] = useState("Toutes");
+  // NOUVEAU : État pour le tri (par défaut: les plus chères en premier)
+  const [sortBy, setSortBy] = useState("value_desc"); 
   const [selectedCard, setSelectedCard] = useState<CollectionItem | null>(null);
   const [isSelling, setIsSelling] = useState(false);
 
   // Liste unique des raretés présentes dans la collection pour le filtre
   const rarities = ["Toutes", ...Array.from(new Set(collection.map((c) => c.rarity).filter(Boolean)))];
-
-  // Fonction pour déterminer le prix de base selon la rareté et le booster
-  const getBasePrice = (rarity: string | undefined, name: string, setId: string) => {
-    const cardName = name.toLowerCase();
-
-    // 1. Exceptions VIP (Prix fixes prioritaires)
-    const specialKey = Object.keys(SPECIAL_CARD_PRICES).find(key => 
-        cardName.includes(key)
-    );
-    if (specialKey) {
-        return SPECIAL_CARD_PRICES[specialKey as keyof typeof SPECIAL_CARD_PRICES];
-    }
-
-    // 2. Calcul dynamique basé sur le prix du booster
-    const packPrice = BOOSTER_CONFIG[setId as keyof typeof BOOSTER_CONFIG]?.price || 20;
-    
-    const r = rarity?.toLowerCase() || "";
-    const ratioKey = Object.keys(RARITY_RATIOS).find(key => 
-        r.includes(key)
-    );
-
-    const ratio = ratioKey ? RARITY_RATIOS[ratioKey] : 0.05; // 5% par défaut (commune)
-    
-    return Math.round((packPrice * ratio) * 10) / 10;
-  };
 
   // Calcul de la valeur totale du classeur
   const totalCollectionValue = useMemo(() => {
@@ -53,14 +56,34 @@ export default function CollectionClient({ collection, isPublic = false }: { col
     }, 0);
   }, [collection]);
 
-  // Filtrage de la collection (Recherche + Rareté)
+  // Filtrage ET Tri de la collection
   const filteredCollection = useMemo(() => {
-    return collection.filter((item) => {
+    // 1. On filtre d'abord
+    let result = collection.filter((item) => {
       const matchName = item.name.toLowerCase().includes(search.toLowerCase());
       const matchRarity = rarityFilter === "Toutes" || item.rarity === rarityFilter;
       return matchName && matchRarity;
     });
-  }, [collection, search, rarityFilter]);
+
+    // 2. On trie ensuite le résultat
+    result.sort((a, b) => {
+      if (sortBy === "value_desc" || sortBy === "value_asc") {
+        const priceA = getBasePrice(a.rarity, a.name, a.set.id);
+        const priceB = getBasePrice(b.rarity, b.name, b.set.id);
+        
+        if (sortBy === "value_desc") return priceB - priceA; // Plus cher au moins cher
+        return priceA - priceB; // Moins cher au plus cher
+      }
+      
+      if (sortBy === "name_asc") {
+        return a.name.localeCompare(b.name); // Ordre alphabétique
+      }
+
+      return 0;
+    });
+
+    return result;
+  }, [collection, search, rarityFilter, sortBy]); // On ajoute sortBy dans les dépendances
 
   const handleSellCard = async () => {
     if (!selectedCard || selectedCard.card_ids.length === 0) return;
@@ -127,7 +150,7 @@ export default function CollectionClient({ collection, isPublic = false }: { col
         </div>
       </div>
 
-      {/* Barre de filtres */}
+      {/* Barre de filtres et de tri */}
       <div className="flex flex-col sm:flex-row gap-4 bg-gray-900 p-4 rounded-lg border border-gray-800">
         <input
           type="text"
@@ -145,6 +168,17 @@ export default function CollectionClient({ collection, isPublic = false }: { col
           {rarities.map((rarity) => (
             <option key={rarity} value={rarity}>{rarity}</option>
           ))}
+        </select>
+
+        {/* NOUVEAU : Menu déroulant pour le tri */}
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          className="bg-gray-800 text-white rounded-md px-4 py-2 border border-gray-700 focus:outline-none focus:border-blue-500 font-medium"
+        >
+          <option value="value_desc">💸 Valeur (Plus chère)</option>
+          <option value="value_asc">🪙 Valeur (Moins chère)</option>
+          <option value="name_asc">🔤 Nom (A - Z)</option>
         </select>
       </div>
 
