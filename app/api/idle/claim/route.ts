@@ -3,8 +3,8 @@ import { createClient } from "@/lib/supabase-server";
 
 const REWARDS = {
   pilules: { amount: 2, name: "Donner les pilules" },
-  polir: { amount: 15, name: "Polir le crâne" },
-  ecouter: { amount: 100, name: "Écouter ses histoires" }
+  polir: { amount: 10, name: "Polir le crâne" },
+  ecouter: { amount: 30, name: "Écouter ses histoires" }
 };
 
 export async function POST(req: Request) {

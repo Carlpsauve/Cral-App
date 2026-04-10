@@ -121,6 +121,9 @@ export default function DailyPage() {
     }
 
     const { result: gameResult, newBalance } = await res.json()
+    if (mode === 'paid') {
+      fetch('/api/bounties/progress', { method: 'POST', body: JSON.stringify({ type: 'slots' }) }).catch(e => console.error(e));
+    }
     const linesPlayed = mode === 'free' ? 1 : lines
 
     // Animate each line

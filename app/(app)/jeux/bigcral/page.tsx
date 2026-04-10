@@ -110,6 +110,9 @@ export default function BigCralPage() {
     const data = await res.json()
 
     if (!res.ok) { setError(data.error); setPhase('idle'); return }
+    
+    // Traqueur de quête
+    fetch('/api/bounties/progress', { method: 'POST', body: JSON.stringify({ type: 'bigcral' }) }).catch(e => console.error(e));
 
     // landed_index = index in WHEEL_ORDER (0-based).
     // The pointer sits at the TOP of the wheel (12 o'clock).

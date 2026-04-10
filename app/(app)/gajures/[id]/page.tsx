@@ -143,6 +143,10 @@ export default function GajureDetailPage() {
     if (bet?.is_team_bet) updateData.team = myAcceptTeam
     await supabase.from('bet_participants').update(updateData).eq('bet_id', id).eq('user_id', currentUser.id)
     setSuccess('Gajure acceptée!')
+    
+    // Traqueur de quêtes
+    fetch('/api/bounties/progress', { method: 'POST', body: JSON.stringify({ type: 'gajure' }) }).catch(e => console.error(e));
+
     setTimeout(() => setSuccess(''), 3000)
     setActionLoading(false)
   }
@@ -252,7 +256,7 @@ export default function GajureDetailPage() {
             <h1 className="font-display text-2xl font-bold text-cral-text truncate">{bet.title}</h1>
             {isTeamBet && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-blue-400/10 text-blue-400 font-medium flex items-center gap-1 flex-shrink-0">
-                <Users size={10} /> Équipes
+                <Users size={10} /> Équipes (Oui/Non)
               </span>
             )}
           </div>
@@ -279,7 +283,7 @@ export default function GajureDetailPage() {
           {isTeamBet ? (
             <>
               <div className="text-2xl font-display font-bold text-cral-text">
-                {bet.winner_team === 'A' ? '🔵 Équipe A' : '🔴 Équipe B'} remporte la gajure!
+                {bet.winner_team === 'A' ? '🔵 Équipe A (Oui)' : '🔴 Équipe B (Non)'} remporte la gajure!
               </div>
               <div className="text-cral-sub text-sm mt-1">
                 {(bet.winner_team === 'A' ? teamA : teamB).map((p: any) => p.profile?.username).join(', ')}
@@ -339,7 +343,7 @@ export default function GajureDetailPage() {
                 team === 'A' ? 'bg-blue-400/5 border-blue-400/20' : 'bg-red-400/5 border-red-400/20'
               }`}>
                 <div className={`text-sm font-bold mb-2 ${team === 'A' ? 'text-blue-300' : 'text-red-300'}`}>
-                  {team === 'A' ? '🔵' : '🔴'} Équipe {team} ({members.length})
+                  {team === 'A' ? '🔵' : '🔴'} Équipe {team} {team === 'A' ? '(Oui)' : '(Non)'} ({members.length})
                 </div>
                 <div className="space-y-1.5 mb-3">
                   {members.map((p: any) => (
@@ -444,7 +448,7 @@ export default function GajureDetailPage() {
                         ? t === 'A' ? 'bg-blue-400/20 border-blue-400/50 text-blue-300' : 'bg-red-400/20 border-red-400/50 text-red-300'
                         : 'border-cral-border text-cral-sub hover:border-cral-muted'
                     }`}>
-                    {t === 'A' ? '🔵' : '🔴'} Équipe {t}
+                    {t === 'A' ? '🔵' : '🔴'} Équipe {t} {t === 'A' ? '(Oui)' : '(Non)'}
                   </button>
                 ))}
               </div>
@@ -500,7 +504,7 @@ export default function GajureDetailPage() {
                         : 'border-cral-border hover:border-cral-muted hover:bg-cral-surface'
                     )}>
                     <span className="text-2xl">{team === 'A' ? '🔵' : '🔴'}</span>
-                    <span className={`font-bold text-sm ${team === 'A' ? 'text-blue-300' : 'text-red-300'}`}>Équipe {team}</span>
+                    <span className={`font-bold text-sm ${team === 'A' ? 'text-blue-300' : 'text-red-300'}`}>Équipe {team} {team === 'A' ? '(Oui)' : '(Non)'}</span>
                     <span className="text-xs text-cral-muted">{members.map((p: any) => p.profile?.username).join(', ')}</span>
                   </button>
                 )
@@ -544,7 +548,7 @@ export default function GajureDetailPage() {
           <CheckCircle size={22} className="text-green-400 mx-auto mb-2" />
           <div className="text-sm text-cral-text">
             {isTeamBet
-              ? <>Vote pour <span className="font-bold">{myVote.voted_for_id === 'A' ? '🔵 Équipe A' : '🔴 Équipe B'}</span></>
+              ? <>Vote pour <span className="font-bold">{myVote.voted_for_id === 'A' ? '🔵 Équipe A (Oui)' : '🔴 Équipe B (Non)'}</span></>
               : <>Vote pour <span className="text-gold-400 font-medium">{myVote.voted_for?.username}</span></>
             }
           </div>
@@ -587,7 +591,7 @@ export default function GajureDetailPage() {
                   className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg border transition-colors disabled:opacity-50 ${
                     team === 'A' ? 'border-blue-400/30 text-blue-300 hover:bg-blue-400/10' : 'border-red-400/30 text-red-300 hover:bg-red-400/10'
                   }`}>
-                  <Trophy size={12} /> {team === 'A' ? '🔵' : '🔴'} Équipe {team} gagne
+                  <Trophy size={12} /> {team === 'A' ? '🔵' : '🔴'} Équipe {team} {team === 'A' ? '(Oui)' : '(Non)'} gagne
                 </button>
               ))}
             </div>
@@ -620,7 +624,7 @@ export default function GajureDetailPage() {
                 <span className="text-cral-text">{v.voter?.username}</span>
                 <span className="text-cral-muted">→</span>
                 <span className={isTeamBet ? (v.voted_for_id === 'A' ? 'text-blue-400 font-medium' : 'text-red-400 font-medium') : 'text-gold-400 font-medium'}>
-                  {isTeamBet ? (v.voted_for_id === 'A' ? '🔵 Équipe A' : '🔴 Équipe B') : v.voted_for?.username}
+                  {isTeamBet ? (v.voted_for_id === 'A' ? '🔵 Équipe A (Oui)' : '🔴 Équipe B (Non)') : v.voted_for?.username}
                 </span>
               </div>
             ))}

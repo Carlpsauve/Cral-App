@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import { formatCral, getInitials } from '@/lib/utils'
 import { Profile } from '@/types'
-import { Shield, Plus, Minus, UserCog, RefreshCw, Users, Coins, BarChart3 } from 'lucide-react'
+import { Shield, Plus, Minus, UserCog, RefreshCw, Users, Coins, BarChart3, Dices } from 'lucide-react'
+import Link from 'next/link' // ✨ NOUVEAU
 
 export default function AdminPanel({ players: initialPlayers, currentUserId }: {
   players: Profile[]
@@ -119,12 +120,23 @@ export default function AdminPanel({ players: initialPlayers, currentUserId }: {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="font-display text-3xl font-bold text-cral-text flex items-center gap-3">
-          <Shield className="text-gold-400" size={28} />
-          Panel Admin
-        </h1>
-        <p className="text-cral-sub text-sm mt-1">Gestion des joueurs · Mises à jour en temps réel</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="font-display text-3xl font-bold text-cral-text flex items-center gap-3">
+            <Shield className="text-gold-400" size={28} />
+            Panel Admin
+          </h1>
+          <p className="text-cral-sub text-sm mt-1">Gestion des joueurs · Mises à jour en temps réel</p>
+        </div>
+
+        {/* ✨ NOUVEAU BOUTON : Laboratoire RNG */}
+        <Link 
+          href="/admin/rng-tracker"
+          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-sm transition-all shadow-lg shadow-purple-600/20 w-fit"
+        >
+          <Dices size={18} />
+          Laboratoire RNG
+        </Link>
       </div>
 
       {/* Toast */}
@@ -155,17 +167,17 @@ export default function AdminPanel({ players: initialPlayers, currentUserId }: {
           <div className="font-mono text-xl font-bold text-cral-text">₡{formatCral(avgBalance)}</div>
           <div className="text-xs text-cral-sub mt-1">Solde moyen</div>
         </div>
-        <div className="card text-center">
+        <div className="card text-center border-purple-500/20">
+          <Dices size={16} className="text-purple-400 mx-auto mb-2" />
           <div className="font-mono text-xl font-bold text-cral-text">
-            ₡{formatCral(totalCirculation - players.length * 100)}
-          </div>
-          <div className="text-xs text-cral-sub mt-1">
             {totalCirculation >= players.length * 100 ? '↑ Inflation' : '↓ Déflation'}
           </div>
+          <div className="text-xs text-cral-sub mt-1">Économie</div>
         </div>
       </div>
 
       {/* Top/bottom */}
+      {/* ... Le reste du code est identique ... */}
       {players.length >= 2 && (
         <div className="grid grid-cols-2 gap-4">
           {richest && (
@@ -210,7 +222,6 @@ export default function AdminPanel({ players: initialPlayers, currentUserId }: {
             const isLoadingAny = loading?.includes(player.id)
             return (
               <div key={player.id} className={`card space-y-4 transition-all ${isMe ? 'border-gold-500/30' : ''}`}>
-                {/* Player info */}
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-cral-bg flex-shrink-0"
                     style={{ backgroundColor: player.avatar_color }}>
@@ -232,7 +243,6 @@ export default function AdminPanel({ players: initialPlayers, currentUserId }: {
                     </div>
                     <div className="text-sm font-mono text-gold-400 mt-0.5">₡{formatCral(player.balance)}</div>
                   </div>
-                  {/* Balance bar */}
                   <div className="hidden sm:block w-24">
                     <div className="h-1.5 rounded-full bg-cral-border overflow-hidden">
                       <div
@@ -246,7 +256,6 @@ export default function AdminPanel({ players: initialPlayers, currentUserId }: {
                   </div>
                 </div>
 
-                {/* Controls */}
                 <div className="flex gap-2 flex-wrap items-center">
                   <div className="relative flex-1 min-w-[120px]">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gold-400 font-mono text-sm">₡</span>

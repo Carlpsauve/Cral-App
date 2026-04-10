@@ -9,17 +9,17 @@ import { createClient } from "@/lib/supabase-client";
 // Configuration des tâches (durée en millisecondes pour l'affichage)
 const TASKS = {
   pilules: { id: 'pilules', name: "Donner ses pilules", duration: 60 * 1000, durationLabel: "1 min", reward: 2, icon: Pill, color: "text-red-400" },
-  polir: { id: 'polir', name: "Polir son crâne chauve", duration: 15 * 60 * 1000, durationLabel: "15 min", reward: 15, icon: HandHeart, color: "text-amber-200" },
-  ecouter: { id: 'ecouter', name: "Écouter ses histoires", duration: 8 * 60 * 60 * 1000, durationLabel: "8 heures", reward: 100, icon: Ear, color: "text-blue-400" }
+  polir: { id: 'polir', name: "Polir son crâne chauve", duration: 15 * 60 * 1000, durationLabel: "15 min", reward: 10, icon: HandHeart, color: "text-amber-200" },
+  ecouter: { id: 'ecouter', name: "Écouter ses histoires", duration: 4 * 60 * 60 * 1000, durationLabel: "4 heures", reward: 30, icon: Ear, color: "text-blue-400" }
 };
 
 // --- ÉTATS D'ANIMATION ARCADE ---
 // Les images alternatives doivent être pré-générées et placées dans /public/
 const ARCADE_IMAGES = {
-  idle: "/sugar-cral-arcade-idle.jpg",   // image_14.png (sans frottement, bouche fermée)
-  pills: "/sugar-cral-arcade-pills.jpg", // Bouche qui parle doucement, bulle de médicaments
-  polish: "/sugar-cral-arcade-polish.jpg", // Frottement vigorously, sourire excessive, bulle d'étoiles
-  stories: "/sugar-cral-arcade-stories.jpg" // Bouche qui raconte, bulle de narration
+  idle: "/sugar-cral-arcade-idle.jpg",   
+  pilules: "/sugar-cral-arcade-pills.jpg", // Remplacé "pills" par "pilules"
+  polir: "/sugar-cral-arcade-polish.jpg",  // Remplacé "polish" par "polir"
+  ecouter: "/sugar-cral-arcade-stories.jpg" // Remplacé "stories" par "ecouter"
 };
 
 export default function SugarCralPage() {
@@ -60,15 +60,24 @@ export default function SugarCralPage() {
       if (task) {
         setActiveTask(task.task_id);
         setEndTime(new Date(task.ends_at).getTime());
-        // Mettre à jour l'animation d'arcade en fonction de la tâche
-        setCurrentArcadeImage(ARCADE_IMAGES[task.task_id as keyof typeof ARCADE_IMAGES] || ARCADE_IMAGES.idle);
       }
       setIsLoading(false);
     }
     fetchActiveTask();
   }, [supabase]);
 
-  // 2. Gérer le chronomètre visuel
+  // 2. Synchroniser l'image arcade avec la tâche active (source unique de vérité)
+  useEffect(() => {
+    if (activeTask) {
+      // Si une tâche est active, afficher l'image correspondante
+      setCurrentArcadeImage(ARCADE_IMAGES[activeTask as keyof typeof ARCADE_IMAGES] || ARCADE_IMAGES.idle);
+    } else {
+      // Si aucune tâche n'est active, revenir à l'image idle
+      setCurrentArcadeImage(ARCADE_IMAGES.idle);
+    }
+  }, [activeTask]);
+
+  // 3. Gérer le chronomètre visuel
   useEffect(() => {
     if (!endTime) {
       setTimeLeft(0);
@@ -82,12 +91,6 @@ export default function SugarCralPage() {
       const now = Date.now();
       const remaining = Math.max(0, endTime - now);
       setTimeLeft(remaining);
-
-      if (remaining === 0) {
-        clearInterval(interval);
-        // Revenir à l'animation idle quand c'est fini
-        setCurrentArcadeImage(ARCADE_IMAGES.idle);
-      }
     }, 1000);
 
     return () => clearInterval(interval);
@@ -98,8 +101,6 @@ export default function SugarCralPage() {
     try {
       // Optimisation UI : On met l'état temporairement le temps que le serveur réponde
       setActiveTask(taskId); 
-      // Mettre à jour l'animation d'arcade
-      setCurrentArcadeImage(ARCADE_IMAGES[taskId as keyof typeof ARCADE_IMAGES]);
       
       const res = await fetch("/api/idle/start", {
         method: "POST",
@@ -112,12 +113,13 @@ export default function SugarCralPage() {
 
       // On met à jour avec l'heure exacte calculée par le serveur
       setEndTime(new Date(data.endsAt).getTime());
+      // Traqueur de quête
+      fetch('/api/bounties/progress', { method: 'POST', body: JSON.stringify({ type: 'sugar_cral' }) }).catch(e => console.error(e));
 
     } catch (error: any) {
       // Remplacer l'alerte par la notification élégante
       showNotification(error.message || "Erreur de connexion avec le manoir.", "error");
       setActiveTask(null);
-      setCurrentArcadeImage(ARCADE_IMAGES.idle);
     }
   };
 
@@ -139,7 +141,6 @@ export default function SugarCralPage() {
       setActiveTask(null);
       setEndTime(null);
       setTimeLeft(0);
-      setCurrentArcadeImage(ARCADE_IMAGES.idle);
       
       // Rafraîchir pour mettre à jour le solde dans la navigation
       router.refresh(); 
@@ -223,9 +224,16 @@ export default function SugarCralPage() {
             >
               <Icon size={40} className={`${task.color} mb-4`} />
               <h3 className="text-lg font-bold text-white text-center mb-1">{task.name}</h3>
-              <p className="text-gold-400 font-mono font-bold flex items-center gap-1 mb-6">
-                <Coins size={14} /> +{task.reward} ₡
-              </p>
+              
+              {/* NOUVEAU : Conteneur pour la récompense ET la durée */}
+              <div className="flex items-center gap-4 mb-6">
+                <p className="text-gold-400 font-mono font-bold flex items-center gap-1">
+                  <Coins size={14} /> +{task.reward} ₡
+                </p>
+                <p className="text-gray-400 font-mono text-sm flex items-center gap-1">
+                  <Timer size={14} /> {task.durationLabel}
+                </p>
+              </div>
 
               {/* Zone du bouton / chronomètre */}
               <div className="w-full mt-auto">

@@ -4,12 +4,16 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-client'
-import { cn, formatCral, getInitials } from '@/lib/utils'
+import { cn, formatCral } from '@/lib/utils'
 import Avatar from '@/components/ui/Avatar'
 import { Profile } from '@/types'
-import { LayoutDashboard, Swords, Gamepad2, Trophy, LogOut, Shield, History, User, Palette, Store, BookOpen } from 'lucide-react'
+import { LayoutDashboard, Swords, Gamepad2, Trophy, LogOut, Shield, History, User, Palette, Store, BookOpen, Coffee } from 'lucide-react'
 
-interface SidebarProps { profile: Profile }
+// ✨ IMPORT DES CONFIGURATIONS DE TITRES ✨
+import { TITLES_CONFIG } from '@/config/titles'
+
+// On s'assure que le profil puisse recevoir `active_title`
+interface SidebarProps { profile: Profile & { active_title?: string } }
 
 export default function Sidebar({ profile: initialProfile }: SidebarProps) {
   const pathname = usePathname()
@@ -19,9 +23,13 @@ export default function Sidebar({ profile: initialProfile }: SidebarProps) {
   const [pendingBets, setPendingBets] = useState(0)
   const [hasPlayedToday, setHasPlayedToday] = useState(false)
 
+  // ✨ Détermination du design selon le titre actif (ou le rôle par défaut)
+  const activeTitleKey = profile.active_title || (TITLES_CONFIG[profile.role] ? profile.role : null)
+  const activeConfig = activeTitleKey ? TITLES_CONFIG[activeTitleKey] : null
+
   useEffect(() => {
     async function loadBadges() {
-      // Pending invitations: two-step query (avoid unsupported join-filter syntax)
+      // Pending invitations
       const { data: unaccepted } = await supabase
         .from('bet_participants')
         .select('bet_id')
@@ -51,13 +59,14 @@ export default function Sidebar({ profile: initialProfile }: SidebarProps) {
     }
     loadBadges()
 
-    // Keep balance in sync
+    // Keep profile in sync (balance AND active_title)
     const channel = supabase
       .channel(`sidebar-profile-${profile.id}`)
       .on('postgres_changes', {
         event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${profile.id}`
       }, payload => {
-        setProfile(prev => ({ ...prev, balance: payload.new.balance }))
+        // ✨ On met à jour tout le profil pour capter les changements de titre en temps réel
+        setProfile(prev => ({ ...prev, ...payload.new })) 
       })
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'bet_participants', filter: `user_id=eq.${profile.id}`
@@ -87,7 +96,7 @@ export default function Sidebar({ profile: initialProfile }: SidebarProps) {
     { href: '/shop/collection', label: 'Collection', icon: BookOpen },
     { href: '/classement', label: 'Classement', icon: Trophy },
     { href: '/historique', label: 'Historique', icon: History },
-  { href: '/avatar', label: 'Mon avatar', icon: Palette },
+    { href: '/avatar', label: 'Mon avatar', icon: Palette },
   ]
 
   return (
@@ -102,52 +111,79 @@ export default function Sidebar({ profile: initialProfile }: SidebarProps) {
         </Link>
       </div>
 
-      {/* User card */}
+      {/* ✨ User card Dynamique ✨ */}
       <Link href="/profil" className="p-4 border-b border-cral-border hover:bg-cral-card transition-colors group">
         <div className="flex items-center gap-3">
-          <Avatar username={profile.username} avatarColor={profile.avatar_color} avatarSvg={profile.avatar_svg} size={36} className="transition-transform group-hover:scale-105" />
+          
+          {/* L'avatar avec le ring correspondant au titre */}
+          <div className={activeConfig ? activeConfig.sidebarRing : ''}>
+            <div className={activeConfig ? 'bg-[#12121a] rounded-full p-[2px]' : ''}>
+              <Avatar username={profile.username} avatarColor={profile.avatar_color} avatarSvg={profile.avatar_svg} size={36} className="transition-transform group-hover:scale-105" />
+            </div>
+          </div>
+
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium text-cral-text truncate">{profile.username}</div>
+            {/* Le texte du pseudo avec la couleur du titre */}
+            <div className={`text-sm font-medium truncate ${activeConfig ? activeConfig.textClass : 'text-cral-text'}`}>
+              {profile.username}
+            </div>
             <div className="text-xs font-mono text-gold-400">₡{formatCral(profile.balance)}</div>
           </div>
-          {(profile.role === 'super_admin' || profile.role === 'homme_blanc_chauve') && (
-            <span className="text-xs flex-shrink-0">{profile.role === 'super_admin' ? '⚡' : '🦲'}</span>
+          
+          {/* La petite icône d'admin reste en priorité */}
+          {profile.role === 'super_admin' && (
+            <span className="text-xs flex-shrink-0">⚡</span>
           )}
         </div>
       </Link>
 
       {/* Nav */}
-      <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ href, label, icon: Icon, badge, dot }: any) => (
-          <Link
-            key={href}
-            href={href}
-            className={cn('nav-link relative', pathname === href && 'active')}
-          >
-            <Icon size={16} />
-            <span className="flex-1">{label}</span>
-            {badge && (
-              <span className="ml-auto min-w-[18px] h-[18px] rounded-full bg-gold-500 text-cral-bg text-[10px] font-bold flex items-center justify-center px-1">
-                {badge}
-              </span>
-            )}
-            {dot && !badge && (
-              <span className="ml-auto w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            )}
-          </Link>
-        ))}
-
-        {profile.role === 'super_admin' && (
-          <>
-            <div className="pt-4 pb-1 px-3">
-              <div className="text-xs text-cral-muted uppercase tracking-wider">Admin</div>
-            </div>
-            <Link href="/admin" className={cn('nav-link', pathname.startsWith('/admin') && 'active')}>
-              <Shield size={16} />
-              Panel Admin
+      <nav className="flex-1 p-3 flex flex-col overflow-y-auto">
+        <div className="space-y-0.5">
+          {navItems.map(({ href, label, icon: Icon, badge, dot }: any) => (
+            <Link
+              key={href}
+              href={href}
+              className={cn('nav-link relative', pathname === href && 'active')}
+            >
+              <Icon size={16} />
+              <span className="flex-1">{label}</span>
+              {badge && (
+                <span className="ml-auto min-w-[18px] h-[18px] rounded-full bg-gold-500 text-cral-bg text-[10px] font-bold flex items-center justify-center px-1">
+                  {badge}
+                </span>
+              )}
+              {dot && !badge && (
+                <span className="ml-auto w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              )}
             </Link>
-          </>
-        )}
+          ))}
+
+          {profile.role === 'super_admin' && (
+            <>
+              <div className="pt-4 pb-1 px-3">
+                <div className="text-xs text-cral-muted uppercase tracking-wider">Admin</div>
+              </div>
+              <Link href="/admin" className={cn('nav-link', pathname.startsWith('/admin') && 'active')}>
+                <Shield size={16} />
+                Panel Admin
+              </Link>
+            </>
+          )}
+        </div>
+
+        {/* ✨ BOUTON MULTICOULEUR FLOTTANT EN BAS DU MENU ✨ */}
+        <div className="mt-auto pt-6 pb-2 px-1">
+          <a
+            href="https://ko-fi.com/cralou"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group relative flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl text-white font-bold text-sm bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 shadow-lg shadow-purple-500/20 transition-all duration-300 hover:scale-[1.02] hover:shadow-purple-500/40"
+          >
+            <Coffee size={18} className="group-hover:rotate-12 transition-transform" />
+            <span>Soutenir Cral</span>
+          </a>
+        </div>
       </nav>
 
       {/* Profile + Logout */}
@@ -156,6 +192,7 @@ export default function Sidebar({ profile: initialProfile }: SidebarProps) {
           <User size={16} />
           Mon profil
         </Link>
+
         <button
           onClick={handleLogout}
           className="nav-link w-full text-red-400 hover:text-red-300 hover:bg-red-400/10"

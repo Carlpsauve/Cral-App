@@ -7,6 +7,9 @@ import { TrendingUp, TrendingDown, Swords, Gamepad2 } from 'lucide-react'
 import Link from 'next/link'
 import DashboardWheelTrigger from './DashboardWheelTrigger'
 
+// ✨ IMPORT DES TITRES ✨
+import { TITLES_CONFIG } from '@/config/titles'
+
 export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -25,14 +28,12 @@ export default async function DashboardPage() {
     .order('created_at', { ascending: false })
     .limit(5)
 
-  // Get my participation IDs first
   const { data: myParticipations } = await supabase
     .from('bet_participants')
     .select('bet_id')
     .eq('user_id', user.id)
   const myBetIds = myParticipations?.map(p => p.bet_id) ?? []
 
-  // Fetch active bets I'm involved in
   const { data: activeBets } = await supabase
     .from('bets')
     .select(`*, creator:profiles!bets_creator_id_fkey(username), participants:bet_participants(user_id, accepted)`)
@@ -43,7 +44,6 @@ export default async function DashboardPage() {
     .order('created_at', { ascending: false })
     .limit(3)
 
-  // Total won/lost
   const { data: stats } = await supabase
     .from('transactions')
     .select('amount, type')
@@ -52,13 +52,25 @@ export default async function DashboardPage() {
   const totalWon = stats?.filter(t => t.amount > 0 && t.type !== 'signup_bonus').reduce((s, t) => s + t.amount, 0) ?? 0
   const totalLost = Math.abs(stats?.filter(t => t.amount < 0).reduce((s, t) => s + t.amount, 0) ?? 0)
 
+  // ✨ Détermination de la configuration du titre du joueur ✨
+  const activeTitleKey = profile?.active_title || (profile?.role && TITLES_CONFIG[profile.role] ? profile.role : null)
+  const activeConfig = activeTitleKey ? TITLES_CONFIG[activeTitleKey] : null
+
   return (
     <div className="space-y-8">
-      {/* Header */}
+      {/* Header avec Titre Dynamique */}
       <div>
-        <h1 className="font-display text-3xl font-bold text-cral-text">
-          Bonjour, {profile?.username}! 👋
-        </h1>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="font-display text-3xl font-bold text-cral-text">
+            Bonjour, {profile?.username}! 👋
+          </h1>
+          {/* ✨ Affichage dynamique du badge ✨ */}
+          {activeConfig && (
+            <span className={activeConfig.tagClass}>
+              {activeConfig.label}
+            </span>
+          )}
+        </div>
         <p className="text-cral-sub text-sm mt-1">Voici l&apos;état de vos finances Cral</p>
       </div>
 

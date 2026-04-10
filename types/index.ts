@@ -1,4 +1,4 @@
-export type Role = 'super_admin' | 'plebe' | 'homme_blanc_chauve'
+export type Role = 'super_admin' | 'plebe' | 'homme_blanc_chauve' | 'cral_slayer';
 
 export interface Profile {
   id: string
@@ -10,6 +10,8 @@ export interface Profile {
   avatar_svg: string | null
   created_at: string
   updated_at: string
+  active_title?: string | null
+  unlocked_titles?: string[] | null
 }
 
 export interface Bet {

@@ -7,11 +7,11 @@ import Link from "next/link";
 import { BookOpen, Sparkles, CheckCircle2, Gift } from "lucide-react";
 import { BOOSTER_CONFIG, BoosterSetId } from "@/config/boosters";
 import { createClient } from "@/lib/supabase-client";
+import HoloCard from "@/components/ui/HoloCard";
 
 type Step = 'idle' | 'fetching' | 'opening' | 'revealing' | 'done';
 
-// On définit les boosters exclus ici aussi pour l'affichage
-const EXCLUDED_FROM_FREE: string[] = ["mew"];
+const EXCLUDED_FROM_FREE: string[] = ["sv03.5"];
 
 export default function BoostersPage() {
   const supabase = createClient();
@@ -20,7 +20,8 @@ export default function BoostersPage() {
   const [flipped, setFlipped] = useState<boolean[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [currentBooster, setCurrentBooster] = useState<BoosterSetId | null>(null);
-  const [isFreeAvailable, setIsFreeAvailable] = useState(false);
+  
+  const [freeBoostersRemaining, setFreeBoostersRemaining] = useState(0);
   const router = useRouter();
   
   useEffect(() => {
@@ -29,15 +30,16 @@ export default function BoostersPage() {
       if (!user) return;
 
       const today = new Date().toLocaleDateString('fr-CA', { timeZone: 'America/Montreal' });
-      
-      const { data } = await supabase
+      const maxFree = 3;
+
+      const { data: claimedBoosters } = await supabase
         .from('daily_boosters')
         .select('id')
         .eq('user_id', user.id)
-        .eq('played_date', today)
-        .maybeSingle();
+        .eq('played_date', today);
       
-      setIsFreeAvailable(!data);
+      const claimedCount = claimedBoosters?.length || 0;
+      setFreeBoostersRemaining(Math.max(0, maxFree - claimedCount));
     }
     checkFreeStatus();
   }, [supabase]);
@@ -56,12 +58,14 @@ export default function BoostersPage() {
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur");
+      
+      fetch('/api/bounties/progress', { method: 'POST', body: JSON.stringify({ type: 'boosters' }) }).catch(e => console.error(e));
 
       setResult(data.pulledCards);
       setFlipped(new Array(data.pulledCards.length).fill(false));
       
       if (data.isFree) {
-        setIsFreeAvailable(false);
+        setFreeBoostersRemaining(prev => Math.max(0, prev - 1));
       }
       
       router.refresh();
@@ -84,6 +88,12 @@ export default function BoostersPage() {
     }
   };
 
+  const isFreeAvailable = freeBoostersRemaining > 0;
+
+  // Séparation dynamique des boosters
+  const pokemonBoosters = Object.entries(BOOSTER_CONFIG).filter(([_, config]) => config.game === "pokemon");
+  const lorcanaBoosters = Object.entries(BOOSTER_CONFIG).filter(([_, config]) => config.game === "lorcana");
+
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 min-h-[80vh] flex flex-col">
       {/* En-tête */}
@@ -96,7 +106,9 @@ export default function BoostersPage() {
         {isFreeAvailable && step === 'idle' && (
           <div className="bg-green-500/10 border border-green-500/50 px-4 py-2 rounded-full flex items-center gap-2 text-green-400 animate-bounce">
             <Gift size={18} />
-            <span className="text-sm font-bold">Booster gratuit disponible !</span>
+            <span className="text-sm font-bold">
+              {freeBoostersRemaining > 1 ? `${freeBoostersRemaining} boosters gratuits disponibles !` : 'Booster gratuit disponible !'}
+            </span>
           </div>
         )}
 
@@ -111,41 +123,92 @@ export default function BoostersPage() {
 
       {/* ÉTAPE 1 : Étagère */}
       {(step === 'idle' || step === 'fetching') && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12">
-          {Object.entries(BOOSTER_CONFIG).map(([id, config]) => {
-            // On vérifie si CE booster spécifique est éligible à la gratuité
-            const canBeFree = isFreeAvailable && !EXCLUDED_FROM_FREE.includes(id);
+        <div className="space-y-16">
+          
+          {/* Section Pokémon */}
+          <section>
+            <h2 className="text-2xl font-bold text-white mb-8 border-b border-gray-800 pb-3 flex items-center gap-3">
+              <span className="text-red-500">🔴</span> Pokémon TCG
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12">
+              {pokemonBoosters.map(([id, config]) => {
+                const canBeFree = isFreeAvailable && !EXCLUDED_FROM_FREE.includes(id);
 
-            return (
-              <div key={id} className="flex flex-col items-center">
-                <div 
-                  className={`relative w-64 cursor-pointer transition-transform hover:-translate-y-2 ${step === 'fetching' ? 'opacity-50' : ''}`}
-                  onClick={() => handleBuyBooster(id as BoosterSetId)}
-                >
-                  <img src={config.image} alt={config.name} className="w-full h-full object-contain rounded-xl shadow-2xl" />
-                </div>
-                <h3 className="mt-4 text-xl font-bold text-white">{config.name}</h3>
-                
-                <button 
-                  onClick={() => handleBuyBooster(id as BoosterSetId)}
-                  disabled={step === 'fetching'}
-                  className={`mt-4 font-bold py-2 px-10 rounded-full shadow-lg transition-all active:scale-95 flex items-center gap-2 ${
-                    canBeFree 
-                      ? 'bg-green-600 hover:bg-green-500 text-white' 
-                      : 'bg-gold-500 hover:bg-gold-400 text-black'
-                  }`}
-                >
-                  {canBeFree && <Gift size={18} />}
-                  {step === 'fetching' && currentBooster === id 
-                    ? "Paiement..." 
-                    : canBeFree 
-                      ? "GRATUIT" 
-                      : `Acheter ₡${config.price}`
-                  }
-                </button>
-              </div>
-            );
-          })}
+                return (
+                  <div key={id} className="flex flex-col items-center">
+                    <div 
+                      className={`relative w-64 cursor-pointer transition-transform hover:-translate-y-2 ${step === 'fetching' ? 'opacity-50' : ''}`}
+                      onClick={() => handleBuyBooster(id as BoosterSetId)}
+                    >
+                      <img src={config.image} alt={config.name} className="w-full h-full object-contain rounded-xl shadow-2xl" />
+                    </div>
+                    <h3 className="mt-4 text-xl font-bold text-white">{config.name}</h3>
+                    
+                    <button 
+                      onClick={() => handleBuyBooster(id as BoosterSetId)}
+                      disabled={step === 'fetching'}
+                      className={`mt-4 font-bold py-2 px-10 rounded-full shadow-lg transition-all active:scale-95 flex items-center gap-2 ${
+                        canBeFree 
+                          ? 'bg-green-600 hover:bg-green-500 text-white' 
+                          : 'bg-gold-500 hover:bg-gold-400 text-black'
+                      }`}
+                    >
+                      {canBeFree && <Gift size={18} />}
+                      {step === 'fetching' && currentBooster === id 
+                        ? "Paiement..." 
+                        : canBeFree 
+                          ? "GRATUIT" 
+                          : `Acheter ₡${config.price}`
+                      }
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Section Lorcana */}
+          <section>
+            <h2 className="text-2xl font-bold text-white mb-8 border-b border-gray-800 pb-3 flex items-center gap-3">
+              <span className="text-purple-400">✨</span> Disney Lorcana
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12">
+              {lorcanaBoosters.map(([id, config]) => {
+                const canBeFree = isFreeAvailable && !EXCLUDED_FROM_FREE.includes(id);
+
+                return (
+                  <div key={id} className="flex flex-col items-center">
+                    <div 
+                      className={`relative w-64 cursor-pointer transition-transform hover:-translate-y-2 ${step === 'fetching' ? 'opacity-50' : ''}`}
+                      onClick={() => handleBuyBooster(id as BoosterSetId)}
+                    >
+                      <img src={config.image} alt={config.name} className="w-full h-full object-contain rounded-xl shadow-2xl" />
+                    </div>
+                    <h3 className="mt-4 text-xl font-bold text-white">{config.name}</h3>
+                    
+                    <button 
+                      onClick={() => handleBuyBooster(id as BoosterSetId)}
+                      disabled={step === 'fetching'}
+                      className={`mt-4 font-bold py-2 px-10 rounded-full shadow-lg transition-all active:scale-95 flex items-center gap-2 ${
+                        canBeFree 
+                          ? 'bg-green-600 hover:bg-green-500 text-white' 
+                          : 'bg-gold-500 hover:bg-gold-400 text-black'
+                      }`}
+                    >
+                      {canBeFree && <Gift size={18} />}
+                      {step === 'fetching' && currentBooster === id 
+                        ? "Paiement..." 
+                        : canBeFree 
+                          ? "GRATUIT" 
+                          : `Acheter ₡${config.price}`
+                      }
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
         </div>
       )}
 
@@ -173,16 +236,14 @@ export default function BoostersPage() {
           </h2>
           <div className="flex flex-wrap justify-center gap-4 md:gap-6 w-full max-w-5xl">
             {result.map((card, index) => (
-              <div key={index} className="relative w-[140px] md:w-[180px] aspect-[63/88] cursor-pointer group [perspective:1000px]" onClick={() => handleFlip(index)}>
-                <div className={`w-full h-full transition-all duration-700 [transform-style:preserve-3d] ${flipped[index] ? '[transform:rotateY(180deg)]' : 'hover:-translate-y-2'}`}>
-                  <div className="absolute inset-0 w-full h-full [backface-visibility:hidden] rounded-xl overflow-hidden border-[3px] border-yellow-600/50">
-                    <img src="https://upload.wikimedia.org/wikipedia/en/3/3b/Pokemon_Trading_Card_Game_cardback.jpg" alt="Back" className="w-full h-full object-cover" />
-                  </div>
-                  <div className="absolute inset-0 w-full h-full [backface-visibility:hidden] [transform:rotateY(180deg)] rounded-xl overflow-hidden bg-black shadow-2xl">
-                    {card.image ? <Image src={`${card.image}/high.png`} alt={card.name} fill className="object-cover" /> : <div className="p-2 text-xs">{card.name}</div>}
-                  </div>
-                </div>
-              </div>
+              <HoloCard 
+                key={index} 
+                card={card} 
+                isFlipped={flipped[index]} 
+                onClick={() => handleFlip(index)} 
+                // ✨ LA CORRECTION : On force la taille de la carte ici !
+                className="w-[140px] md:w-[180px] lg:w-[220px]" 
+              />
             ))}
           </div>
           {step === 'done' && (

@@ -5,6 +5,7 @@ import { formatCral, formatDate, cn } from '@/lib/utils'
 import { redirect } from 'next/navigation'
 import { History, Shield } from 'lucide-react'
 
+// Dictionnaire des types de transactions
 const TYPE_LABELS: Record<string, string> = {
   bet_win: '🎲 Gajure gagnée',
   bet_loss: '🎲 Gajure perdue',
@@ -24,6 +25,14 @@ const TYPE_LABELS: Record<string, string> = {
   blackjack_loss: '🃏 Blackjack — perte',
   shop_booster: '📦 Boutique — achat booster',
   shop_sell: '💰 Boutique — revente carte',
+  
+  // NOUVEAUX SYSTÈMES
+  quiz_reward: '🧠 Quiz Mort Subite — victoire',
+  bounty_reward: '🎯 Quêtes quotidiennes accomplies',
+  idle_claim: '🍬 Sugar Cral — salaire',
+  idle_reward: '🍬 Sugar Cral — salaire', // J'ajoute les 2 au cas où l'API utilise l'un ou l'autre
+  bigcral_win: '🎡 Big Cral — gain',
+  bigcral_loss: '🎡 Big Cral — perte',
 }
 
 export default async function HistoriquePage() {
@@ -101,6 +110,7 @@ export default async function HistoriquePage() {
               <div key={tx.id} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
+                    {/* AFFICHE LE LABEL DU DICTIONNAIRE, OU LE TYPE BRUT SI INCONNU */}
                     <span className="text-sm font-medium text-cral-text">{TYPE_LABELS[tx.type] ?? tx.type}</span>
                     {isSuperAdmin && tx.profile && tx.user_id !== user.id && (
                       <span className="text-xs text-cral-muted">· {tx.profile.username}</span>

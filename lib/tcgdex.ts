@@ -53,3 +53,8 @@ export async function getSetDetails(setId: string): Promise<TCGSetDetails | null
     return null;
   }
 }
+
+export async function getCardsBySet(setId: string): Promise<TCGCardDef[]> {
+  const details = await getSetDetails(setId);
+  return details?.cards || [];
+}

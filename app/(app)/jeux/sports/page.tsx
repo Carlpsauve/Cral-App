@@ -137,6 +137,7 @@ export default function SportsPage() {
       setBetModal(null)
       await loadData()
       setTimeout(() => setBetSuccess(''), 5000)
+      fetch('/api/bounties/progress', { method: 'POST', body: JSON.stringify({ type: 'sports' }) }).catch(e => console.error(e));
     }
     setPlacingBet(false)
   }

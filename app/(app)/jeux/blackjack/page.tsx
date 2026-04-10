@@ -79,6 +79,8 @@ export default function BlackjackPage() {
     const data = await api('deal', { bet })
     if (!data) return
     setBalance(b => b - bet)
+    // Traqueur de quête
+    fetch('/api/bounties/progress', { method: 'POST', body: JSON.stringify({ type: 'blackjack' }) }).catch(e => console.error(e));
     setSplit(null)
     setDealerFull([])
     setResult(null)

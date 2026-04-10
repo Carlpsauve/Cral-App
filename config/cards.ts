@@ -9,21 +9,21 @@ export const SPECIAL_CARD_PRICES: Record<string, number> = {
   "mew": 150,
 
   // --- BOOSTER FOSSILE (Les Oiseaux Légendaires & Dracos) ---
-  "sulfura": 110,      // Moltres - Star de Fossile
-  "electhor": 110,     // Zapdos - Star de Fossile
-  "artikodin": 110,    // Articuno - Star de Fossile
-  "dracolosse": 100,   // Dragonite - La carte la plus iconique de Fossile
-  "kicklee": 40,       // Hitmonlee
-  "ectoplasma": 80,   // Gengar - Très recherché par les fans
+  "sulfura": 110,      
+  "electhor": 110,     
+  "artikodin": 110,    
+  "dracolosse": 100,   
+  "kicklee": 40,       
+  "ectoplasma": 80,   
 
   // --- BOOSTER JUNGLE (Évolutions finales & Évoli) ---
-  "pyroli": 80,       // Flareon
-  "aquali": 80,       // Vaporeon
-  "voltali": 80,      // Jolteon
-  "insécateur": 75,   // Scyther - La "Chase Card" de Jungle avec Kangourex
-  "kangourex": 50,    // Kangaskhan
-  "scarabrute": 30,    // Pinsir
-  "lokhlass": 50,      // Lapras
+  "pyroli": 80,       
+  "aquali": 80,       
+  "voltali": 80,      
+  "insécateur": 75,   
+  "kangourex": 50,    
+  "scarabrute": 30,    
+  "lokhlass": 50,      
 
   // --- LES STARTERS & CLASSIQUES (100₡) ---
   "tortank": 50,
@@ -32,17 +32,32 @@ export const SPECIAL_CARD_PRICES: Record<string, number> = {
   "pikachu": 100,
 
   // --- SPÉCIAL 151 (Ratios adaptés pour un pack à 40₡) ---
-  "mew ex": 400,       // La star du set
-  "alakazam ex": 150,  
-  "kadabra": 30,       // Clin d'œil car il était absent longtemps
-  "evoli": 25,         // Toujours populaire
+  "mew-ex": 1000,       
+  "alakazam-ex": 150,  
+  "kadabra": 30,       
+  "evoli": 25,         
 };
 
-export const RARITY_RATIOS: Record<string, number> = {
-  "secrète": 0.75,      // 75% du prix (Vente à 15₡ si pack à 20₡)
-  "ultra": 0.50,        // 50% du prix (Vente à 10₡ si pack à 20₡)
-  "holo": 0.40,         // 40% du prix (Vente à 8₡ si pack à 20₡)
-  "rare": 0.20,         // 20% du prix (Vente à 4₡ si pack à 20₡)
-  "peu commune": 0.10,  // 10% du prix (Vente à 2₡ si pack à 20₡)
-  "commune": 0.05,      // 5% du prix  (Vente à 1₡ si pack à 20₡)
+export const RARITY_RATIOS: Record<"pokemon" | "lorcana", Record<string, number>> = {
+  // --- LORCANA ---
+  lorcana: {
+    "enchanted": 100.00,  
+    "legendary": 10.00,   
+    "super rare": 0.5,    
+    "rare": 0.20,         // ✨ Le nouveau ratio JUSTE pour Lorcana Bronze !
+    "uncommon": 0.1,     
+    "common": 0.05,       
+  },
+  
+  // --- POKÉMON ---
+  pokemon: {
+    "secrète": 10,      
+    "ultra": 5,        
+    "holo": 2,         
+    "rare": 1,          // 🔴 Le ratio qui reste fort pour Pokémon !
+    "peu commune": 0.10,  
+    "commune": 0.05,
+    "uncommon": 0.10,     // Au cas où une carte Pokémon anglaise passe
+    "common": 0.05,       // Au cas où une carte Pokémon anglaise passe
+  }
 };

@@ -8,6 +8,11 @@
     {
       "path": "/api/sports/cron",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/daily-quiz",
+      "schedule": "0 4 * * *"
     }
   ]
 }
+
